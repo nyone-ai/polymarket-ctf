@@ -1,8 +1,11 @@
 """Risk management: opportunity detection, sizing, limits."""
 from __future__ import annotations
 
+import datetime
 import logging
 import time
+from collections import deque
+from typing import Optional
 
 from src.config import Settings
 from src.models import Opportunity, Orderbook, Side
@@ -28,10 +31,10 @@ def find_opportunity(market, book, settings) -> Optional[Opportunity]:
         return None
     total = y.price + n.price
     profit = 1.0 - total
-    margin_bps = profit *  10000
+    margin_bps = profit * 10000
     if total >= settings.threshold:
         return None
-    if profit < settings.min_profit_usd and settings.min_profit_usd >  0:
+    if profit < settings.min_profit_usd and settings.min_profit_usd > 0:
         return None
     if margin_bps < settings.min_profit_margin_bps:
         return None
@@ -39,24 +42,42 @@ def find_opportunity(market, book, settings) -> Optional[Opportunity]:
     max_cost = settings.max_size_per_trade
     if size * total > max_cost:
         size = max_cost / total
-    import datetime
-    return Opportunity(market=market, yes_ask=y.price, no_ask=n.price, combined_cost=total, profit_per_pair=profit, profit_margin_bps=margin_bps, max_size=size, quote_ts=datetime.datetime.now(datetime.timezone.utc))
+    return Opportunity(
+        market=market,
+        yes_ask=y.price,
+        no_ask=n.price,
+        combined_cost=total,
+        profit_per_pair=profit,
+        profit_margin_bps=margin_bps,
+        max_size=size,
+        quote_ts=datetime.datetime.now(datetime.timezone.utc),
+    )
+
+
 class RiskManager:
     def __init__(self, settings):
         self.settings = settings
         self.trades = []
-        self._opened_at =  0.0
-        self._day_start =  0.0
-        self._day_pnl =  0.0
+        self._opened_at = 0.0
+        self._day_start = 0.0
+        self._day_pnl = 0.0
+        self._trade_timestamps = deque(maxlen=settings.max_trades_per_minute)
 
     def can_trade(self):
         now = time.monotonic()
         if now - self._opened_at < self.settings.cooldown_seconds:
             return False
+        # Rate limit: max_trades_per_minute
+        cutoff = now - 60
+        while self._trade_timestamps and self._trade_timestamps[0] < cutoff:
+            self._trade_timestamps.popleft()
+        if len(self._trade_timestamps) >= self.settings.max_trades_per_minute:
+            return False
         return True
 
     def mark_open(self):
         self._opened_at = time.monotonic()
+        self._trade_timestamps.append(self._opened_at)
 
     def check_daily_loss(self, day_pnl):
         self._day_pnl += day_pnl

@@ -40,6 +40,7 @@ class ClobClient:
     def _parse_book(self, token_id, data) -> Orderbook:
         market = Market(condition_id=token_id, question=token_id)
         ob = Orderbook(market=market)
+        side = Side.YES if "yes" in token_id.lower() or "YES" in token_id else Side.NO
         for level in data.get("bids", []):
             pq = level.get("price")
             sz = level.get("size")
