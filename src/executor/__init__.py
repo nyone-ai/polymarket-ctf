@@ -218,12 +218,22 @@ class Executor:
         fills = await self.wallet.wait_for_fills(tx)
         
         # Handle case where no fills were received (live mode safety check)
+        # Return an OrderFill with size=0 to indicate no fill occurred
         if not fills:
             logger.warning(f"No fills received for token {req.token_id}. Proceeding with merge anyway.")
+            # Still return a fill object with size=0 so the merge logic can proceed
+            return OrderFill(
+                token_id=req.token_id,
+                side=req.side,
+                price=req.price,
+                size=0,
+                fee_usd=0,
+                tx_hash=None,
+            )
         
-        # Aggregate fill results (empty list if no fills)
-        total_size = sum(f["size"] for f in fills) if fills else 0
-        total_fee = sum(f.get("fee", 0) for f in fills) if fills else 0
+        # Aggregate fill results
+        total_size = sum(f["size"] for f in fills)
+        total_fee = sum(f.get("fee", 0) for f in fills)
         tx_hash = fills[0].get("tx_hash") if fills else None
         
         return OrderFill(
