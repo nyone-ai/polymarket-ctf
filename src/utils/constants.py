@@ -5,14 +5,20 @@ from __future__ import annotations
 POLYGON_CHAIN_ID = 137
 POLYGON_RPC_DEFAULT = "https://polygon-rpc.com"
 
-# --- Tokens ---
-USDC_ADDRESS = "0x3c499c542cEF5E3811e1192ee70C3c8c7B9E8B2"  # bridged USDC.e on Polygon
-USDCe_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa8414"
-PUSD_ADDRESS = "0x9Ba6E67E3251Eb9fFAc384069B2e0bC24A4f4D9"  # pUSD (CTF yield token; placeholder)
-WRAPPER_USDC_ADDRESS = "0x0CE8C5F1C4B1b3B4A1F3d1C1a1B1c1D1e1F1a1B1"  # placeholder WrapperUSDC
+# --- Tokens (Polygon Mainnet) ---
+USDC.e_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"  # USDC.e bridged
+USDC_ADDRESS = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"  # Native USDC (Polygon)
+PUSD_ADDRESS = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"  # pUSD proxy
+WRAPPER_USDC_ADDRESS = PUSD_ADDRESS  # pUSD is the wrapper collateral token
 
-# WrapperUSDC needs actual address; auto-detected from CTF factory when possible.
-# pUSD address too; these are placeholders to keep imports valid.
+# --- Core Polymarket Contracts (Polygon Mainnet) ---
+CTF_EXCHANGE_ADDRESS = "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E"  # CTF Exchange V2
+CTF_CONDITION_TOKENS = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"  # CTF main contract
+NEG_RISK_ADAPTER_ADDRESS = "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296"  # NegRisk Adapter (deprecated for negRisk markets)
+
+# --- Collateral contracts ---
+COLLATERAL_ONRAMP = "0x93070a847efEf7F70739046A929D47a521F5B8ee"  # USDC.e → pUSD
+COLLATERAL_OFFRAMP = "0x2957922Eb93258b93368531d39fAcCA3B4dC5854"  # pUSD → USDC.e
 
 # --- Nonces / encoded zero ---
 ZERO_BYTES32 = "0x" + "0" * 64

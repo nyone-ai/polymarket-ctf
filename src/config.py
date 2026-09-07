@@ -56,10 +56,10 @@ class Settings(BaseSettings):
     ctf_exchange_address: Optional[str] = None
     neg_risk_adapter_address: Optional[str] = None
     wrapper_usdc_address: Optional[str] = None
-    telegram_bot_token: Optional[str] = None
-    telegram_chat_id: Optional[str] = None
-    neg_risk_adapter_address: Optional[str] = None
-    wrapper_usdc_address: Optional[str] = None
+    usdce_address: Optional[str] = None
+    pusd_address: Optional[str] = None
+    collateral_onramp_address: Optional[str] = None
+    collateral_offramp_address: Optional[str] = None
 
     # --- Scanner / watchlist ---
     watchlist_mode: str = "explicit"  # explicit | auto | hybrid
