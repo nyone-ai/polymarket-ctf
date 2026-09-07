@@ -1,0 +1,44 @@
+# Contoh konfigurasi lengkap.
+# Nilai di .env (environment variables) selalu menimpa nilai di file ini.
+# Salin ke config/settings.yaml bila ingin memakai file YAML sebagai sumber konfigurasi.
+
+mode: paper            # paper | live
+threshold: 0.995        # trigger crude SUM(best_yes_ask + best_no_ask)
+min_profit_usd: 1.0
+min_profit_margin_bps: 10
+max_size_per_trade: 500     # USDC/pUSD per trade per sisi
+max_daily_loss: 100
+cooldown_seconds:  ️5
+max_trades_per_minute:  ️10
+reserve_gas_usd:  ️2.0
+
+order_type: FOK             # FOK | IOC
+excess_mode: cancel         # cancel | sell
+merge_mode: adapter         # adapter | ctf_direct
+auto_wrap_usdce: false
+tx_timeout_seconds: 120
+
+watchlist_mode: explicit      # explicit | auto | hybrid
+watchlist_path: config/markets.watchlist.json
+watchlist_condition_ids: []            # isi manual kalau mau (daftar condition_id binary)
+auto_discover: true
+auto_discover_filters:
+  neg_risk: false            # hanya binary standard (negRisk=false)
+  min_liquidity: 5000        # USDC
+  min_volume_24h: 1000
+  active_only: true
+
+# Override fee rate (bps per kategori) bila scanner gagal fetch otomatis.
+
+fee_rate_bps_override:
+
+# Opsional
+matic_usd_price:               # kosong = auto-fetch
+telegram:
+  bot_token:
+  chat_id:
+  rate_limit_per_min:  ️20
+
+logging:
+  level: INFO
+  dir: logs

@@ -1,0 +1,12 @@
+{
+  "_comment": "Daftar market binary standard (negRisk=false) yang dipantau. Token IDs diisi manual (WATCHLIST_MODE=explicit) atau dikosongkan untuk auto-discover. conditionId dan token ids dari Gamma API >= CLOB price endpoint.",
+  "markets": [
+    {
+      "condition_id": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "question": "Replace with a real binary market question",
+      "neg_risk": false,
+      "yes_token_id": "71321045682876283459752040163984812831746950381570885859058867441545989142117",
+      "no_token_id": "71321045682876283459752040163984812831746950381570885859058867441545989142118"
+    }
+  ]
+}

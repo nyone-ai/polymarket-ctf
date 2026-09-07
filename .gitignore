@@ -1,0 +1,36 @@
+# Environment & secrets
+.env
+*.pem
+*.key
+
+# Logs
+logs/
+*.log
+
+# Cache / artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.venv*/
+*.egg-info/
+build/
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Data
+data/
+*.sqlite3
+*.db
+
+# OS
+.DS_Store
+# Workspace scratch (OpenHands)
+.agents_tmp/
