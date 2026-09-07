@@ -11,6 +11,7 @@ from src.models import (
     Opportunity,
     OrderFill,
     OrderRequest,
+    OrderType,
     Side,
     TradeMode,
     TradeRecord,
@@ -158,6 +159,8 @@ class Executor:
         Place YES and NO orders via CLOB.
         For FOK: if full fill not available, the order is killed.
         For IOC: partial fills are accepted; remaining is cancelled.
+        
+        Uses py-clob-client SDK if available, otherwise falls back to REST + EIP-712 signing.
         """
         order_type = self.settings.order_type
         logger.info("Placing CLOB orders: YES @ %s, NO @ %s, size=%s, type=%s",
@@ -178,25 +181,20 @@ class Executor:
             order_type=yes_req.order_type,
         )
 
-        # Use py-clob-client if available, otherwise fall back to REST
+        # Use py-clob-client SDK if wallet is available, otherwise fall back to REST
         try:
-            yes_fill = await self._place_order_via_sdk(yes_req)
-            no_fill = await self._place_order_via_sdk(no_req)
-        except ImportError:
-            logger.warning("py-clob-client not available, falling back to REST")
+            if self.wallet is not None:
+                yes_fill = await self._place_order_via_sdk(yes_req)
+                no_fill = await self._place_order_via_sdk(no_req)
+            else:
+                raise ImportError("No wallet available")
+        except (ImportError, RuntimeError):
+            logger.warning("SDK path unavailable, falling back to REST + EIP-712 signing")
             yes_fill = await self._place_order_via_rest(yes_req)
             no_fill = await self._place_order_via_rest(no_req)
 
         logger.info("Order fills - YES: %s @ %s, NO: %s @ %s",
                      yes_fill.size, yes_fill.price, no_fill.size, no_fill.price)
-        
-        # Handle partial fills based on order type
-        if order_type == "FOK":
-            # FOK: should be fully filled or killed; check fill status
-            if yes_fill.size < size * 0.99 or no_fill.size < size * 0.99:
-                logger.error("FOK order not fully filled: YES=%s/%s, NO=%s/%s",
-                             yes_fill.size, size, no_fill.size, size)
-                # Return with partial fill info; caller handles merge of what we have
         
         return yes_fill, no_fill
 
@@ -334,4 +332,4 @@ class Executor:
         await asyncio.sleep(0.0)
 
 
-import datetime  # for find_opportunity timestamp
+

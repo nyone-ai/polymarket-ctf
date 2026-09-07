@@ -51,11 +51,12 @@ class CtfAdapter:
     def merge(self, condition_id: str, amount: float, yes_token_id: str | None = None, no_token_id: str | None = None) -> str:
         """
         Merge YES + NO conditional tokens into pUSD.
+        Locally signs the transaction and sends via send_raw_transaction.
         
         condition_id: the condition ID of the market
         amount: number of token pairs to merge (each side)
-        yes_token_id: YES token ID (optional for legacy adapter mode)
-        no_token_id: NO token ID (optional for legacy adapter mode)
+        yes_token_id: YES token ID
+        no_token_id: NO token ID
         
         Returns transaction hash.
         """
@@ -65,26 +66,32 @@ class CtfAdapter:
         # Convert condition_id to bytes32
         cond_bytes32 = self._to_bytes32(condition_id)
         
-        # For mergePositions we need both token IDs for binary markets
-        # If not provided, try to get them from settings or raise
         if not yes_token_id or not no_token_id:
-            # Try to get from market discovery (legacy)
-            logger.warning("yes_token_id or no_token_id not provided, trying to infer from config")
-            # This should be handled by the caller with market info
             raise ValueError("yes_token_id and no_token_id required for merge")
         
         # Convert token IDs to bytes32
         yes_bytes32 = self._to_bytes32(yes_token_id)
         no_bytes32 = self._to_bytes32(no_token_id)
         
-        # Convert amount to wei (18 decimals for pUSD tokens?)
-        # Conditional tokens use 18 decimals for amounts
+        # Convert amount to wei (18 decimals for CTF amounts)
         amount_wei = to_wei(amount, 18)
         
-        # Call mergePositions
-        tx_hash = exchange.functions.mergePositions(cond_bytes32, yes_bytes32, no_bytes32, amount_wei).transact({
-            "from": self.settings.wallet_address
+        # Get the account from private key for local signing
+        from eth_account import Account
+        acct = Account.from_key(self.settings.private_key)
+        
+        # Build the transaction
+        nonce = w3.eth.get_transaction_count(acct.address)
+        tx = exchange.functions.mergePositions(cond_bytes32, yes_bytes32, no_bytes32, amount_wei).build_transaction({
+            "from": acct.address,
+            "nonce": nonce,
+            "gas": 300000,
+            "gasPrice": w3.to_wei("20", "gwei"),
         })
+        
+        # Sign locally and send via send_raw_transaction
+        signed = acct.sign_transaction(tx)
+        tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
         
         logger.info("CTF merge submitted: condition=%s, amount=%s, tx=%s", condition_id, amount, tx_hash.hex())
         return tx_hash.hex()

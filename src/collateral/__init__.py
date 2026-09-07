@@ -62,12 +62,14 @@ class Collateral:
     def wrap(self, amount_usdce: float, to_address: str | None = None) -> str:
         """
         Wrap USDC.e -> pUSD.
+        Locally signs the transaction and sends via send_raw_transaction.
         amount_usdce: amount in USD base units (6 decimals).
         Returns transaction hash.
         """
         w3 = self._web3()
         amount_wei = to_wei(amount_usdce, 6)  # 6 decimals for USDC.e
-        recipient = to_address or w3.eth.account.from_key(self.settings.private_key).address
+        acct = w3.eth.account.from_key(self.settings.private_key)
+        recipient = to_address or acct.address
 
         # Step 1: Approve Onramp to spend USDC.e
         onramp = self._get_onramp()
@@ -76,24 +78,35 @@ class Collateral:
              "inputs": [{"name": "spender", "type": "address"}, {"name": "amount", "type": "uint256"}],
              "outputs": [{"name": "", "type": "bool"}]}
         ])
-        approve_tx = usdc.functions.approve(onramp.address, amount_wei).transact({"from": recipient})
-        approve_hash = w3.eth.wait_for_transaction_receipt(approve_tx)
+        approve_tx = usdc.functions.approve(onramp.address, amount_wei).build_transaction({
+            "from": recipient,
+        })
+        signed = acct.sign_transaction(approve_tx)
+        approve_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
+        approve_receipt = w3.eth.wait_for_transaction_receipt(approve_hash)
         logger.info("Approved Onramp for %s USDC.e (approve tx: %s)", amount_usdce, approve_hash.transactionHash)
 
         # Step 2: Wrap USDC.e -> pUSD
-        wrap_tx = onramp.functions.wrap(self.settings.usdce_address, recipient, amount_wei).transact({"from": recipient})
-        wrap_hash = w3.eth.wait_for_transaction_receipt(wrap_tx)
+        wrap_tx = onramp.functions.wrap(self.settings.usdce_address, recipient, amount_wei).build_transaction({
+            "from": recipient,
+        })
+        signed = acct.sign_transaction(wrap_tx)
+        wrap_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
+        wrap_hash_receipt = w3.eth.wait_for_transaction_receipt(wrap_hash)
         logger.info("Wrapped %s USDC.e -> pUSD (wrap tx: %s)", amount_usdce, wrap_hash.transactionHash)
-        return wrap_hash.transactionHash
+        return wrap_hash_receipt.transactionHash
 
     def unwrap(self, amount_pusd: float, to_address: str | None = None) -> str:
         """
         Unwrap pUSD -> USDC.e.
+        Locally signs the transaction and sends via send_raw_transaction.
         amount_pusd: amount in pUSD base units (6 decimals).
         Returns transaction hash.
         """
         w3 = self._web3()
         amount_wei = to_wei(amount_pusd, 6)  # 6 decimals for pUSD
+        acct = w3.eth.account.from_key(self.settings.private_key)
+        recipient = to_address or acct.address
 
         # Step 1: Approve Offramp to spend pUSD
         offramp = self._get_offramp()
@@ -102,16 +115,23 @@ class Collateral:
              "inputs": [{"name": "spender", "type": "address"}, {"name": "amount", "type": "uint256"}],
              "outputs": [{"name": "", "type": "bool"}]}
         ])
-        recipient = to_address or w3.eth.account.from_key(self.settings.private_key).address
-        approve_tx = pusd.functions.approve(offramp.address, amount_wei).transact({"from": recipient})
-        approve_hash = w3.eth.wait_for_transaction_receipt(approve_tx)
+        approve_tx = pusd.functions.approve(offramp.address, amount_wei).build_transaction({
+            "from": recipient,
+        })
+        signed = acct.sign_transaction(approve_tx)
+        approve_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
+        approve_hash_receipt = w3.eth.wait_for_transaction_receipt(approve_hash)
         logger.info("Approved Offramp for %s pUSD (approve tx: %s)", amount_pusd, approve_hash.transactionHash)
 
         # Step 2: Unwrap pUSD -> USDC.e
-        unw_tx = offramp.functions.unwrap(self.settings.usdce_address, recipient, amount_wei).transact({"from": recipient})
-        unw_hash = w3.eth.wait_for_transaction_receipt(unw_tx)
+        unw_tx = offramp.functions.unwrap(self.settings.usdce_address, recipient, amount_wei).build_transaction({
+            "from": recipient,
+        })
+        signed = acct.sign_transaction(unw_tx)
+        unw_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
+        unw_hash_receipt = w3.eth.wait_for_transaction_receipt(unw_hash)
         logger.info("Unwrapped %s pUSD -> USDC.e (unw tx: %s)", amount_pusd, unw_hash.transactionHash)
-        return unw_hash.transactionHash
+        return unw_hash_receipt.transactionHash
 
     @property
     def pusd_address(self) -> str:

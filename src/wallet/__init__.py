@@ -27,7 +27,7 @@ class EoWallet:
 
     def _account_obj(self):
         if self._account is None:
-            from web3 import Account
+            from eth_account import Account
             self._account = Account.from_key(self.settings.private_key)
         return self._account
 
@@ -89,5 +89,5 @@ def get_account(settings: Settings):
     """Get web3 Account from settings."""
     if not settings.private_key:
         return None
-    from web3 import Account
+    from eth_account import Account
     return Account.from_key(settings.private_key)
