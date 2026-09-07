@@ -70,12 +70,12 @@ class EoWallet:
     async def execute_orders(self, orders: list, order_type: str = "FOK") -> str:
         """Execute multiple orders and return transaction hash."""
         logger.info("execute_orders: %d orders, type=%s", len(orders), order_type)
-        return "0xplaceholder"
+        raise RuntimeError("execute_orders: py-clob-client SDK integration not implemented")
 
     async def wait_for_fills(self, tx_hash: str) -> list:
         """Wait for order fills and return fill info list."""
         logger.info("wait_for_fills: tx=%s", tx_hash)
-        return []
+        raise RuntimeError("wait_for_fills: py-clob-client SDK integration not implemented")
 
 
 def get_wallet(settings: Settings) -> Optional[EoWallet]:

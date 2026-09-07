@@ -218,10 +218,10 @@ class Executor:
         fills = await self.wallet.wait_for_fills(tx)
         
         # Handle case where no fills were received (live mode safety check)
-        # Return an OrderFill with size=0 to indicate no fill occurred
+        # Return an OrderFill with size=0 so the caller's merge_amount check
+        # (merge_amount <= 0) detects the missing fill and aborts the merge.
         if not fills:
-            logger.warning(f"No fills received for token {req.token_id}. Proceeding with merge anyway.")
-            # Still return a fill object with size=0 so the merge logic can proceed
+            logger.warning(f"No fills received for token {req.token_id}. Aborting merge for this trade.")
             return OrderFill(
                 token_id=req.token_id,
                 side=req.side,
