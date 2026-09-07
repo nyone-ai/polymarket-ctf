@@ -32,6 +32,13 @@ auto_discover_filters:
 
 fee_rate_bps_override:
 
+# Opsional alamat kontrak Polygon Mainnet (diambil dari docs.polymarket.com/resources/contracts)
+# Nilai ini sesuai alamat resmi CTF V2 dan collateral contracts.
+ctf_exchange_address: 0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E
+neg_risk_adapter_address: 0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296
+wrapper_usdc_address: 0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB  # pUSD proxy
+usdce_address: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174
+
 # Opsional
 matic_usd_price:               # kosong = auto-fetch
 telegram:

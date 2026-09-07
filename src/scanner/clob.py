@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
@@ -33,9 +34,25 @@ class ClobClient:
         return data.get("data", []) or []
 
     async def get_orderbook(self, token_id, depth=20) -> Orderbook:
-        data = await self._get("/book", {"token_id": token_id, "depth": str(depth)})
+        data = await self._get("/book", {"token_id": str(token_id), "depth": str(depth)})
         book = self._parse_book(token_id, data)
         return book
+
+    async def get_market_orderbook(self, market, depth=20) -> Orderbook:
+        """
+        Fetch and combine YES and NO orderbooks for a market into one Orderbook.
+        This is the primary method used by the arbitrage engine.
+        """
+        yes_book = await self.get_orderbook(market.yes_token_id, depth)
+        no_book = await self.get_orderbook(market.no_token_id, depth)
+
+        combined = Orderbook(market=market)
+        combined.asks_yes = yes_book.asks_yes
+        combined.bids_yes = yes_book.bids_yes
+        combined.asks_no = no_book.asks_yes
+        combined.bids_no = no_book.bids_yes
+        combined.updated_at = datetime.now(timezone.utc)
+        return combined
 
     def _parse_book(self, token_id, data) -> Orderbook:
         market = Market(condition_id=token_id, question=token_id)
