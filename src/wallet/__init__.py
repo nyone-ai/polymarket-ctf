@@ -93,10 +93,13 @@ class EoWallet:
             if isinstance(data, list)and data:
                 fills.extend(self.parse_fills(data))
                 continue
-            size = self._parse_fill_size(item)
+            if status and status not in {"MATCHED", "FILLED", "FILL", "SUCCESS"}:
+                continue
+            side = str(item.get("side") or "BUY").upper()
+            size = self._parse_fill_size(item, side)
             if size <=  0.0:
                 continue
-            fills.append(self._normalize_fill(item, status, size))
+            fills.append(self._normalize_fill(item, status, size, side))
         return fills
 
     @staticmethod
@@ -109,23 +112,38 @@ class EoWallet:
             return 0.0
 
     @staticmethod
-    def _parse_fill_size(item: dict) -> float:
-        """Extract the filled size from a CLOB order response."""
+    def _parse_fill_size(item: dict, side: str) -> float:
+        """Extract the filled size from a CLOB order response.
+
+        ``makerAmount``/``takingAmount`` mirror the signed order side: for BUY
+        orders the maker provides collateral and the taker provides outcome tokens; for
+        SELL orders the roles flip. ``place_orders`` only posts BUY, so responses
+        without an explicit ``side`` are treated as BUY.
+
+        The direct size fields (``size``/``sizeMatched``) win when present; otherwise
+        the matched share count is derived from the amount pair.
+        """
+
         for key in ("size", "sizeMatched", "matchedSize", "originalSize"):
             val = item.get(key)
             if val is not None:
                 return EoWallet._to_float(val)
-        making = EoWallet._to_float(item.get("makingAmount"))
-        taking = EoWallet._to_float(item.get("takingAmount"))
+        making = EoWallet._to_float(item.get("makingAmount") or item.get("makerAmount"))
+        taking = EoWallet._to_float(item.get("takingAmount") or item.get("takerAmount"))
         price = EoWallet._to_float(item.get("price"))
-        if making >  0.0:
-            return making / 1e6
-        if taking > 0.0 and price >  0.0:
-            return taking / price / 1e6
+        if side == "SELL":
+            if making >  0.0:
+                return making / 1e6
+            if taking >  0.0 and price >  0.0:
+                return taking / price / 1e6
+        if taking >  0.0:
+            return taking / 1e6
+        if making >  0.0 and price >  0.0:
+            return making / price / 1e6
         return 0.0
 
     @staticmethod
-    def _normalize_fill(item: dict, status: str, size: float) -> dict:
+    def _normalize_fill(item: dict, status: str, size: float, side: str) -> dict:
         """Extract a single completed-fill record from a live CLOB response."""
         txs = item.get("transactionsHashes") or item.get("transaction_hash") or item.get("transactions") or item.get("txHash") or []
         if isinstance(txs, str):
@@ -141,10 +159,10 @@ class EoWallet:
                 token_id = asset.get("token_id") or asset.get("tokenId") or asset.get("asset_id")
         price = EoWallet._to_float(item.get("price"))
         if price ==  0.0:
-            making = EoWallet._to_float(item.get("makingAmount"))
-            taking = EoWallet._to_float(item.get("takingAmount"))
+            making = EoWallet._to_float(item.get("makingAmount") or item.get("makerAmount"))
+            taking = EoWallet._to_float(item.get("takingAmount") or item.get("takerAmount"))
             if making >  0.0 and taking >  0.0:
-                price = taking / making
+                price = (taking / making) if side == "SELL" else (making / taking)
         fee = EoWallet._to_float(
             item.get("fee") or item.get("taker_fee") or item.get("maker_fee") or item.get("fee_amount")
         )

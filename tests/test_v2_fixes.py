@@ -162,8 +162,8 @@ def test_wallet_parse_fills_v2_order_response_shape():
                 "price": "0.5123",
                 "originalSize": "100",
                 "sizeMatched": "50",
-                "takingAmount": "25615000",
-                "makingAmount": "50000000",
+                "makingAmount": "25615000",
+                "takingAmount": "50000000",
                 "fee": "0.123456",
                 "tradeIDs": ["t9"],
             }
@@ -179,7 +179,7 @@ def test_wallet_parse_fills_v2_order_response_shape():
     assert fill["trade_ids"] == ["t9"]
 
 
-def test_wallet_parse_fills_swaps_making_amount_when_no_direct_size():
+def test_wallet_parse_fills_buy_uses_taker_amount_as_size_when_no_direct_size():
     wallet = EoWallet(Settings())
     fills = wallet.parse_fills(
         [
@@ -187,8 +187,8 @@ def test_wallet_parse_fills_swaps_making_amount_when_no_direct_size():
                 "status": "matched",
                 "tokenID": "tok-v2",
                 "price": "0.5",
-                "takingAmount": "5000000",
-                "makingAmount": "10000000",
+                "makingAmount": "5000000",
+                "takingAmount": "10000000",
                 "transactionsHashes": ["0xtx"],
             }
         ]
@@ -205,8 +205,8 @@ def test_wallet_parse_fills_derives_price_from_amounts():
             {
                 "status": "matched",
                 "tokenID": "tok-v2",
-                "takingAmount": "5000000",
-                "makingAmount": "10000000",
+                "makingAmount": "5000000",
+                "takingAmount": "10000000",
             }
         ]
     )
@@ -218,5 +218,13 @@ def test_wallet_zero_fill_canceled_response_produces_no_fill():
     wallet = EoWallet(Settings())
     fills = wallet.parse_fills(
         [{"status": "canceled", "tokenID": "tok-v2", "originalSize": "100", "sizeMatched": "0"}]
+    )
+    assert fills == []
+
+
+def test_wallet_canceled_fok_without_size_matched_produces_no_fill():
+    wallet = EoWallet(Settings())
+    fills = wallet.parse_fills(
+        [{"status": "canceled", "tokenID": "tok-v2", "originalSize": "100"}]
     )
     assert fills == []
