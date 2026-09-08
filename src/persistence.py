@@ -72,7 +72,7 @@ class TradeStore:
         opp = record.opportunity
         market = opp.market
         total_fee = sum(f.fee_usd for f in (record.fills or []))
-        pair_cost = (record.pportunity.yes_ask + record.opportunity.no_ask) if record.opportunity else 0.0
+        pair_cost = (opp.yes_ask + opp.no_ask) if record.opportunity else 0.0
         if record.merge is not None:
             size = record.merge.merged_amount
             tx_hash = record.merge.tx_hash
@@ -116,8 +116,8 @@ class TradeStore:
         """Accumulate per-day PnL estimates for settled trades."""
         if status != "settled" or size <= 0:
             return
-        gain_est = size - fee
-        pnl_est = size - cost_basis
+        gain_est = size - cost_basis
+        pnl_est = size - cost_basis - fee
         async with self._lock:
             await self._conn.execute(
                 """
