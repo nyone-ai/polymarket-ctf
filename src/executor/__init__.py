@@ -116,6 +116,8 @@ class Executor:
         excess_no = no_fill.size - merge_amount
 
         if merge_amount <= 0:
+            # One side did not fill at all: keep the filled side as a position
+            # rather than dumping it at a loss; the error explains the state.
             msg = "No tokens filled; cannot execute merge"
             logger.error(msg)
             record = TradeRecord(
@@ -141,7 +143,10 @@ class Executor:
 
         # 4. Handle any excess tokens that weren't part of the merge
         if excess_yes > 0 or excess_no > 0:
-            await self._handle_excess(opp, excess_yes, excess_no)
+            logger.info(
+                "Keeping excess tokens as position: YES=%s NO=%s",
+                excess_yes, excess_no,
+            )
 
         # 5. Build trade record
         merged = MergeResult(
@@ -192,8 +197,10 @@ class Executor:
         if self.wallet is None:
             from src.wallet import EoWallet
             self.wallet = EoWallet(self.settings)
-        yes_fill = await self._place_order_via_sdk(yes_req)
-        no_fill = await self._place_order_via_sdk(no_req)
+        yes_fill, no_fill = await asyncio.gather(
+            self._place_order_via_sdk(yes_req),
+            self._place_order_via_sdk(no_req),
+        )
 
         logger.info("Order fills - YES: %s @ %s, NO: %s @ %s",
                      yes_fill.size, yes_fill.price, no_fill.size, no_fill.price)
@@ -235,11 +242,12 @@ class Executor:
         total_size = sum(float(f.get("size") or 0.0) for f in fills)
         total_fee = sum(float(f.get("fee") or 0.0) for f in fills)
         tx_hash = next((f.get("tx_hash") for f in fills if f.get("tx_hash")), None)
+        fill_price = next((f.get("price") for f in fills if (f.get("price") or 0.0) > 0.0), req.price)
 
         return OrderFill(
             token_id=req.token_id,
             side=req.side,
-            price=req.price,
+            price=fill_price,
             size=total_size,
             fee_usd=total_fee,
             tx_hash=tx_hash,

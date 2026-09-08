@@ -5,6 +5,7 @@ import logging
 from typing import Optional
 
 from src.config import Settings
+from src.utils.constants import CTF_CONDITION_TOKENS
 from src.utils.number import to_wei, from_wei
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,30 @@ CTF_MERGE_ABI = [
         "name": "mergePositions",
         "outputs": [],
         "stateMutability": "nonpayable",
+        "type": "function",
+    },
+]
+
+# ConditionalTokens (ERC-1155) minimal ABI for approvals.
+CTF_CONDITIONAL_TOKENS_ABI = [
+    {
+        "inputs": [
+            {"name": "operator", "type": "address"},
+            {"name": "approved", "type": "bool"},
+        ],
+        "name": "setApprovalForAll",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
+    {
+        "inputs": [
+            {"name": "owner", "type": "address"},
+            {"name": "operator", "type": "address"},
+        ],
+        "name": "isApprovedForAll",
+        "outputs": [{"name": "", "type": "bool"}],
+        "stateMutability": "view",
         "type": "function",
     },
 ]
@@ -75,7 +100,15 @@ class CtfAdapter:
         acct = Account.from_key(self.settings.private_key.strip().removeprefix("0x"))
         adapter = self._get_exchange()
         amount_wei = to_wei(amount, 6)
-
+        self._ensure_ctf_approval(w3, acct, adapter.address)
+        if not adapter.functions.mergePositions(
+            "0x0000000000000000000000000000000000000000",
+            "0x" + "0" * 64,
+            condition_id,
+            [1, 2],
+            amount_wei,
+        ).call({"from": acct.address}):
+            raise RuntimeError("CTF adapter mergePositions call() returned falsy; cannot merge")
         tx = adapter.functions.mergePositions(
             "0x0000000000000000000000000000000000000000",  # collateralToken (ignored by adapter)
             "0x" + "0" * 64,  # parentCollectionId (ignored by adapter)
@@ -98,6 +131,45 @@ class CtfAdapter:
             condition_id, amount, tx_hash.hex(),
         )
         return tx_hash.hex()
+
+    def _ensure_ctf_approval(self, w3, acct, adapter_addr: str):
+        """Approve the CTF collateral adapter to spend this wallet's conditional
+        tokens (ERC-1155) idempotently -- required before mergePositions unless
+        a prior approval already exists.
+
+        Performs a single gasless ``isApprovedForAll`` read; only sends the
+        approval transaction when needed.
+
+        ``merge()`` is sync (runs in an executor thread) so we can not use
+        ``await`` here; the sign+send flow is intentionally the same as the
+        merge transaction itself.
+
+        Adapter merges use the conditionaltokens's ``safeTransferFrom``, which
+        requires the adapter to be an approved operator for the caller.
+
+        """
+        ctf_tokens_addr = self.settings.ctf_condition_tokens_address or CTF_CONDITION_TOKENS
+        ctf_tokens = w3.eth.contract(address=ctf_tokens_addr, abi=CTF_CONDITIONAL_TOKENS_ABI)
+        if ctf_tokens is None:
+            return  # defensive; signature mismatch should surface in the call
+        try:
+            approved = ctf_tokens.functions.isApprovedForAll(acct.address, adapter_addr).call()
+        except Exception as exc:
+            logger.warning("Could not read isApprovedForAll (%s); continuing without pre-check", exc)
+            return
+        if approved:
+            return
+        approve_tx = ctf_tokens.functions.setApprovalForAll(adapter_addr, True).build_transaction({
+            "from": acct.address,
+            "nonce": w3.eth.get_transaction_count(acct.address, "pending"),
+            "chainId": self.settings.chain_id,
+            "gas": 150000,
+            "gasPrice": w3.eth.gas_price,
+        })
+        signed = acct.sign_transaction(approve_tx)
+        raw_tx = getattr(signed, "raw_transaction", None) or signed.rawTransaction
+        approve_hash = w3.eth.send_raw_transaction(raw_tx)
+        logger.info("Approved CTF adapter %s on %s (tx: %s)", adapter_addr, ctf_tokens_addr, approve_hash.hex())
 
     def redeem(self, condition_id: str, amount: float, pUSD_token_id: str | None = None) -> str:
         """

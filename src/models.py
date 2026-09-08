@@ -112,6 +112,7 @@ class MergeResult:
     tx_hash: Optional[str] = None
     pUSD_token_id: str = "5347988062-ac8f14e4d1af2f2f21c3b0e7b3f3e1e6c3d0e8"
     redeemable_after: Optional[datetime] = None
+    realized_pnl_usd: Optional[float] = None
 
 
 @dataclass
