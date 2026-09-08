@@ -62,13 +62,13 @@ class ClobClient:
             sz = level.get("size")
             if pq is None or sz is None:
                 continue
-            ob.bids_yes.append(Quote(token_id=token_id, side=Side.BUY, price=float(pq), size=float(sz)))
+            ob.bids_yes.append(Quote(token_id=token_id, side=Side.YES, price=float(pq), size=float(sz)))
         for level in data.get("asks", []):
             pq = level.get("price")
             sz = level.get("size")
             if pq is None or sz is None:
                 continue
-            ob.asks_yes.append(Quote(token_id=token_id, side=Side.ASK, price=float(pq), size=float(sz)))
+            ob.asks_yes.append(Quote(token_id=token_id, side=Side.YES, price=float(pq), size=float(sz)))
         return ob
 
     async def close(self):

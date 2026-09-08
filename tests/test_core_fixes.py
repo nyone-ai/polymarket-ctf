@@ -1,0 +1,64 @@
+from types import SimpleNamespace
+
+import pytest
+
+from src.models import Market, Side
+from src.notifier import Notifier
+from src.risk import find_opportunity
+from src.scanner.clob import ClobClient
+
+
+def test_clob_client_combines_yes_and_no_books(monkeypatch):
+    market = Market("condition", "question", yes_token_id="yes", no_token_id="no")
+    client = ClobClient()
+
+    async def get_orderbook(token_id, depth=20):
+        return client._parse_book(token_id, {"asks": [{"price": "0.40", "size": "12"}]})
+
+    monkeypatch.setattr(client, "get_orderbook", get_orderbook)
+
+    async def check():
+        book = await client.get_market_orderbook(market)
+        assert book.asks_yes[0].token_id == "yes"
+        assert book.asks_no[0].token_id == "no"
+        assert book.asks_yes[0].side is Side.YES
+
+    import asyncio
+    asyncio.run(check())
+
+
+def test_minimum_profit_is_evaluated_for_trade_size():
+    market = Market("condition", "question", yes_token_id="yes", no_token_id="no")
+    client = ClobClient()
+    book = client._parse_book("yes", {"asks": [{"price": "0.49", "size": "200"}]})
+    book.market = market
+    no_book = client._parse_book("no", {"asks": [{"price": "0.49", "size": "200"}]})
+    book.asks_no = no_book.asks_yes
+    settings = SimpleNamespace(
+        threshold=0.995,
+        min_profit_usd=5.0,
+        min_profit_margin_bps=10.0,
+        max_size_per_trade=500.0,
+    )
+
+    opportunity = find_opportunity(market, book, settings)
+
+    assert opportunity is not None
+    assert opportunity.max_size * opportunity.profit_per_pair == pytest.approx(4.0)
+
+
+@pytest.mark.asyncio
+async def test_notifier_uses_instance_settings():
+    settings = SimpleNamespace(telegram_bot_token="token", telegram_chat_id="chat")
+    notifier = Notifier(settings)
+    calls = []
+
+    class Client:
+        async def post(self, url, json):
+            calls.append((url, json))
+            return SimpleNamespace(raise_for_status=lambda: None)
+
+    notifier._client = Client()
+    await notifier.send("alert")
+
+    assert calls == [("https://api.telegram.org/bottoken/sendMessage", {"chat_id": "chat", "text": "alert"})]
