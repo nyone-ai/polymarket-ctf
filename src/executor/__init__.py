@@ -25,10 +25,11 @@ logger = logging.getLogger(__name__)
 
 
 class Executor:
-    def __init__(self, settings: Settings, clob=None, wallet=None):
+    def __init__(self, settings: Settings, clob=None, wallet=None, store=None):
         self.settings = settings
         self.clob = clob
         self.wallet = wallet
+        self.store = store
         self.last_executed_at = 0.0
         self._preflight_live()
 
@@ -83,6 +84,8 @@ class Executor:
             merge=merged,
             status="settled",
         )
+        if self.store is not None:
+            await self.store.record_trade(record)
         return record
 
     async def _execute_live(self, opp, size) -> TradeRecord:
@@ -122,6 +125,8 @@ class Executor:
                 error=msg,
                 mode="live",
             )
+            if self.store is not None:
+                await self.store.record_trade(record)
             return record
 
         logger.info(
@@ -153,6 +158,8 @@ class Executor:
             status="settled",
             mode="live",
         )
+        if self.store is not None:
+            await self.store.record_trade(record)
         return record
 
     async def _place_clob_orders(self, opp: Opportunity, size: float):
@@ -194,29 +201,28 @@ class Executor:
         return yes_fill, no_fill
 
     async def _place_order_via_sdk(self, req: OrderRequest) -> OrderFill:
-        """Place order via py-clob-client SDK."""
+        """Place order via the official py-clob-client-v2 SDK."""
         from src.wallet import EoWallet
-        
+
         if self.wallet is None:
             self.wallet = EoWallet(self.settings)
-        
-        # Create signed order on CLOB
+
         order_params = {
             "token_id": req.token_id,
-            "price": str(req.price),
-            "size": str(req.size),
-            "side": "BUY" if req.side == Side.YES else "BUY",  # Both sides are buys
+            "price": req.price,
+            "size": req.size,
         }
-        
-        # Submit order and wait for fill
-        tx = await self.wallet.execute_orders([order_params], order_type=req.order_type.value)
-        fills = await self.wallet.wait_for_fills(tx)
-        
-        # Handle case where no fills were received (live mode safety check)
-        # Return an OrderFill with size=0 so the caller's merge_amount check
-        # (merge_amount <= 0) detects the missing fill and aborts the merge.
+
+        responses = await self.wallet.place_orders(
+            [order_params], order_type=req.order_type.value
+        )
+        fills = self.wallet.parse_fills(responses)
+
         if not fills:
-            logger.warning(f"No fills received for token {req.token_id}. Aborting merge for this trade.")
+            logger.warning(
+                "No fills received for token %s. Aborting merge for this trade.",
+                req.token_id,
+            )
             return OrderFill(
                 token_id=req.token_id,
                 side=req.side,
@@ -225,12 +231,11 @@ class Executor:
                 fee_usd=0,
                 tx_hash=None,
             )
-        
-        # Aggregate fill results
-        total_size = sum(f["size"] for f in fills)
-        total_fee = sum(f.get("fee", 0) for f in fills)
-        tx_hash = fills[0].get("tx_hash") if fills else None
-        
+
+        total_size = sum(float(f.get("size") or 0.0) for f in fills)
+        total_fee = sum(float(f.get("fee") or 0.0) for f in fills)
+        tx_hash = next((f.get("tx_hash") for f in fills if f.get("tx_hash")), None)
+
         return OrderFill(
             token_id=req.token_id,
             side=req.side,

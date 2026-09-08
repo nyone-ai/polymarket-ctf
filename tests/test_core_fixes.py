@@ -73,6 +73,10 @@ def test_environment_values_override_yaml(tmp_path, monkeypatch):
     path.write_text("mode: paper\norder_type: FOK\n", encoding="utf-8")
     monkeypatch.setenv("MODE", "live")
     monkeypatch.setenv("ORDER_TYPE", "ioc")
+    monkeypatch.setenv("PRIVATE_KEY", "5b3c49b8fd3b9bf1d771ae61f6b14cfc1adcf309c01cba03488abf1ae89f1591")
+    monkeypatch.setenv("WALLET_ADDRESS", "0x4113a96bca721d9FEd8448360D72878A9cCcd5bC")
+    monkeypatch.setenv("RPC_URL", "https://rpc.example")
+    monkeypatch.setenv("CLOB_API_KEY", "test-key")
 
     settings = Settings.from_yaml(path)
 

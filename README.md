@@ -109,16 +109,20 @@ sebelum live trading.
 Field lain yang bisa di-set: `min_profit_margin_bps`, `reserve_gas_usd`,
 `poll_interval`, `excess_mode`, `merge_mode`, `auto_wrap_usdce`,
 `tx_timeout_seconds`, `chain_id`, `clob_host`, `clob_ws_url`,
-`ctf_exchange_address`, `neg_risk_adapter_address`, `wrapper_usdc_address`,
-`usdce_address`, `pusd_address`, `collateral_onramp_address`,
-`collateral_offramp_address`, `fee_rate_bps_override`, `matic_usd_price`, `log_level`.
+`ctf_exchange_address`, `ctf_collateral_adapter_address`, `ctf_condition_tokens`,
+`neg_risk_exchange_address`, `neg_risk_adapter_address`, `wrapper_usdc_address`,
+`usdce_address`, `pusd_address`, `collateral_onramp_address`, `collateral_offramp_address`,
+`fee_rate_bps_override`, `matic_usd_price`, `log_level`.
 
 ## Kontrak Polygon Mainnet (Official)
 
 | Kontrak | Alamat |
 |---|---|
-| CTF Exchange V2 | `0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E` |
-| Conditional Tokens (CTF) | `0x4D97DCd97eC945f40cF65F87097ACe5EA0476045` |
+| CTF Exchange V2 | `0xE111180000d2663C0091e4f400237545B87B996B` |
+| CtfCollateralAdapter (merge/split V2) | `0xAdA100Db00Ca00073811820692005400218FcE1f` |
+| NegRiskCtfCollateralAdapter | `0xadA2005600Dec949baf300f4C6120000bDB6eAab` |
+| NegRisk CTF Exchange V2 | `0xe2222d279d744050d28e00520010520000310F59` |
+| Conditional Tokens (CTF, legacy) | `0x4D97DCd97eC945f40cF65F87097ACe5EA0476045` |
 | pUSD (CollateralToken) | `0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB` |
 | USDC.e | `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174` |
 | CollateralOnramp | `0x93070a847efEf7F70739046A929D47a521F5B8ee` |

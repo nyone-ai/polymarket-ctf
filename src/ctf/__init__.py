@@ -10,19 +10,22 @@ from src.utils.number import to_wei, from_wei
 logger = logging.getLogger(__name__)
 
 # --- Official ABIs ---
-# mergePositions(bytes32 conditionId, bytes32 yesToken, bytes32 noToken, uint256 amount)
+# mergePositions(address collateralToken, bytes32 parentCollectionId, bytes32 conditionId,
+#              uint256[] partition, uint256 amount) on CtfCollateralAdapter (V2.
 CTF_MERGE_ABI = [
-    {"inputs": [
-        {"name": "conditionId", "type": "bytes32"},
-        {"name": "yesToken", "type": "bytes32"},
-        {"name": "noToken", "type": "bytes32"},
-        {"name": "amount", "type": "uint256"}
-    ], "name": "mergePositions", "outputs": [], "type": "function"},
-    {"inputs": [
-        {"name": "conditionId", "type": "bytes32"},
-        {"name": "yesToken", "type": "bytes32"},
-        {"name": "amount", "type": "uint256"}
-    ], "name": "mergePositions", "outputs": [], "type": "function"},  # Simplified for standard binary
+    {
+        "inputs": [
+            {"name": "collateralToken", "type": "address"},
+            {"name": "parentCollectionId", "type": "bytes32"},
+            {"name": "conditionId", "type": "bytes32"},
+            {"name": "partition", "type": "uint256[]"},
+            {"name": "amount", "type": "uint256"},
+        ],
+        "name": "mergePositions",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
 ]
 
 
@@ -42,27 +45,59 @@ class CtfAdapter:
     def _get_exchange(self):
         w3 = self._web3()
         if self._exchange is None:
-            addr = self.settings.ctf_exchange_address
+            addr = self.settings.ctf_collateral_adapter_address
             if not addr:
-                raise RuntimeError("ctf_exchange_address not configured")
+                raise RuntimeError("ctf_collateral_adapter_address required for mergePositions; the CTF Exchange has no mergePositions")
             self._exchange = w3.eth.contract(address=addr, abi=CTF_MERGE_ABI)
         return self._exchange
 
     def merge(self, condition_id: str, amount: float, yes_token_id: str | None = None, no_token_id: str | None = None) -> str:
-        """
-        Merge YES + NO conditional tokens into pUSD.
-        Locally signs the transaction and sends via send_raw_transaction.
-        
-        condition_id: the condition ID of the market
+        """Merge YES + NO conditional tokens into pUSD on the CTF
+        CollateralAdapter (V2 collateral layer).
+
+        Signs and sends the mergePositions transaction locally.
+
+        condition_id:the condition ID of the market
         amount: number of token pairs to merge (each side)
-        yes_token_id: YES token ID
-        no_token_id: NO token ID
-        
+        yes_token_id: YES token ID (unused, part of the generic interface)
+        no_token_id: NO token ID (unused, part of the generic interface)
+
         Returns transaction hash.
         """
-        raise NotImplementedError(
-            "Live CTF merge is disabled until this adapter uses the verified Conditional Tokens ABI and contract address"
+        w3 = self._web3()
+        from eth_account import Account
+
+        if not self.settings.private_key:
+            raise RuntimeError("private_key required for live merge")
+        if not amount or amount <= 0:
+            raise ValueError("amount must be > 0")
+
+        acct = Account.from_key(self.settings.private_key.strip().removeprefix("0x"))
+        adapter = self._get_exchange()
+        amount_wei = to_wei(amount, 6)
+
+        tx = adapter.functions.mergePositions(
+            "0x0000000000000000000000000000000000000000",  # collateralToken (ignored by adapter)
+            "0x" + "0" * 64,  # parentCollectionId (ignored by adapter)
+            condition_id,
+            [1, 2],  # partition: YES|NO indexes
+            amount_wei,
+        ).build_transaction({
+            "from": acct.address,
+            "nonce": w3.eth.get_transaction_count(acct.address, "pending"),
+            "chainId": self.settings.chain_id,
+            "gas": 400000,
+            "gasPrice": w3.eth.gas_price,
+        })
+
+        signed = acct.sign_transaction(tx)
+        raw_tx = getattr(signed, "raw_transaction", None) or signed.rawTransaction
+        tx_hash = w3.eth.send_raw_transaction(raw_tx)
+        logger.info(
+            "CTF merge submitted: condition=%s amount=%s tx=%s",
+            condition_id, amount, tx_hash.hex(),
         )
+        return tx_hash.hex()
 
     def redeem(self, condition_id: str, amount: float, pUSD_token_id: str | None = None) -> str:
         """
