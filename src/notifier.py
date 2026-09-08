@@ -25,8 +25,8 @@ class Notifier:
         if not self.enabled:
             return
         client = await self._get_client()
-        url = "https://api.telegram.org/bot" + settings.telegram_bot_token + "/sendMessage"
-        payload = {"chat_id": str(settings.telegram_chat_id), "text": text}
+        url = "https://api.telegram.org/bot" + self.settings.telegram_bot_token + "/sendMessage"
+        payload = {"chat_id": str(self.settings.telegram_chat_id), "text": text}
         try:
             resp = await client.post(url, json=payload)
             resp.raise_for_status()

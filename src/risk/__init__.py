@@ -34,8 +34,6 @@ def find_opportunity(market, book, settings) -> Optional[Opportunity]:
     margin_bps = profit * 10000
     if total >= settings.threshold:
         return None
-    if profit < settings.min_profit_usd and settings.min_profit_usd > 0:
-        return None
     if margin_bps < settings.min_profit_margin_bps:
         return None
     size = min(y.size, n.size)
