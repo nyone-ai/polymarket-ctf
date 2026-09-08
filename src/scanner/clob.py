@@ -30,7 +30,13 @@ class ClobClient:
         return resp.json()
 
     async def list_markets(self, limit=500) -> list[dict]:
+        """Public /markets listing (V2: returns dicts with condition_id/tokens).
+
+        Handles both the legacy ``data`` payload and the committed top-level list.
+        """
         data = await retry_async(lambda: self._get("/markets", {"limit": str(limit)}))
+        if isinstance(data, list):
+            return data
         return data.get("data", []) or []
 
     async def get_orderbook(self, token_id, depth=20) -> Orderbook:

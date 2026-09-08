@@ -25,9 +25,10 @@ def best_ask(book, side):
 
 
 def find_opportunity(market, book, settings) -> Optional[Opportunity]:
+    # Guard against zero-size ask levels (they cannot be filled)..
     y = best_ask(book, Side.YES)
     n = best_ask(book, Side.NO)
-    if y is None or n is None:
+    if y is None or n is None or y.size <= 0 or n.size <= 0:
         return None
     total = y.price + n.price
     profit = 1.0 - total

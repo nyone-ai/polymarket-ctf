@@ -83,9 +83,10 @@ def filter_auto(markets, settings):
     for m in markets:
         if settings.auto_discover_active_only and not m.active:
             continue
-        if m.liquidity_usd < settings.auto_discover_min_liquidity:
+        # /markets (V2) no longer exposes liquidity/volume; only filter when reported.
+        if m.liquidity_usd > 0.0 and m.liquidity_usd < settings.auto_discover_min_liquidity:
             continue
-        if m.volume_24h_usd < settings.auto_discover_min_volume_24h:
+        if m.volume_24h_usd > 0.0 and m.volume_24h_usd < settings.auto_discover_min_volume_24h:
             continue
         if m.neg_risk:
             continue

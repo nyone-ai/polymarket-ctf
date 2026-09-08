@@ -83,6 +83,17 @@ class TradeStore:
             size = 0.0
             tx_hash = None
 
+        if record.status == "settled":
+            # Realized PnL for a merged pair: every merged share redeems at 1.0,
+            # so proceeds == merge_amount (1 unit each of YES+NO, at $1 total).
+            # Cost basis is the (yes_ask + no_ask) paid per pair; realized PnL is
+            # the difference, minus fees paid.
+            gain_est = size - (pair_cost * size)
+            pnl_est = gain_est - total_fee
+        else:
+            gain_est = 0.0
+            pnl_est = -total_fee
+
         row = (
             record.ts.isoformat(),
             record.mode,
@@ -108,7 +119,9 @@ class TradeStore:
         """
         try:
             await self._execute(sql, row)
-            await self._update_daily_pnl(record.ts.date(), size, pair_cost * size + total_fee, total_fee, record.status)
+            # cost_basis excludes fees: `_update_daily_pnl` subtracts fee once.
+
+            await self._update_daily_pnl(record.ts.date(), size, pair_cost * size, total_fee, record.status)
         except Exception as exc:  # pragma: no cover
             logger.exception("failed to persist trade record: %s", exc)
 

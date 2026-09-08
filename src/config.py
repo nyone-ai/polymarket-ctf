@@ -39,10 +39,12 @@ class Settings(BaseSettings):
     merge_mode: str = "adapter"  # adapter | ctf_direct
     auto_wrap_usdce: bool = False
     tx_timeout_seconds: int =  120
+    order_timeout_seconds: int =  20   # max seconds to await a place_orders response/fill
 
     # --- Wallet ---
     private_key: Optional[str] = None
     wallet_address: Optional[str] = None
+    polymarket_proxy_address: Optional[str] = None
 
     # --- RPC / chain ---
     rpc_url: str = "https://polygon-rpc.com"
@@ -55,16 +57,23 @@ class Settings(BaseSettings):
     clob_api_secret: Optional[str] = None
     clob_api_passphrase: Optional[str] = None
     clob_api_l2: bool = False
-    clob_signature_type: int = 0  # 0=EOA, 1=POLY_PROXY
+    clob_signature_type: int = 0  # 0=EOA,, 1=POLY_PROXY
     ctf_exchange_address: Optional[str] = None
     neg_risk_exchange_address: Optional[str] = None
     neg_risk_adapter_address: Optional[str] = None
     ctf_collateral_adapter_address: Optional[str] = None
+    ctf_condition_tokens_address: Optional[str] = None
     wrapper_usdc_address: Optional[str] = None
     usdce_address: Optional[str] = None
     pusd_address: Optional[str] = None
     collateral_onramp_address: Optional[str] = None
     collateral_offramp_address: Optional[str] = None
+
+    # --- Flash loan (Morpho Blue singleton on Polygon) ---
+    flashloan_enabled: bool = False
+    morpho_blue_address: Optional[str] = None
+    morpho_flashloan_caller: Optional[str] = None
+    morpho_loan_token: Optional[str] = None
 
     # --- Scanner / watchlist ---
     watchlist_mode: str = "explicit"  # explicit | auto | hybrid
