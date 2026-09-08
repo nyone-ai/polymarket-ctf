@@ -85,25 +85,21 @@ class EoWallet:
         if not orders:
             return []
         logger.info("Placing %d CLOB orders (type=%s)", len(orders), order_type)
-        try:
-            from py_clob_client.clob_types import OrderArgs
-            from py_clob_client.order_builder.constants import BUY
-            from py_clob_client.order_builder.common import create_order
-        except ImportError as exc:
-            raise RuntimeError(
-                "py-clob-client SDK is not installed; cannot place live CLOB orders."
-            ) from exc
+        from py_clob_client.clob_types import OrderArgs
+        from py_clob_client.order_builder.constants import BUY
 
         if client is None:
             if self._sdk is None:
                 from py_clob_client.client import ClobClient
-
+                kwargs = {}
+                if self.settings.clob_signature_type == 1:
+                    kwargs["funder"] = self.settings.wallet_address
                 self._sdk = ClobClient(
                     self.settings.clob_host,
                     key=self.settings.private_key,
                     chain_id=self.settings.chain_id,
-                    signature_type=1,  # POLY_PROXY
-                    funder=self.settings.wallet_address,
+                    signature_type=self.settings.clob_signature_type,
+                    **kwargs,
                 )
             client = self._sdk
 
@@ -115,8 +111,10 @@ class EoWallet:
                 side=BUY,
                 token_id=str(order["token_id"]),
             )
-            signed = create_order(args, "IOC" if order_type == "IOC" else "FOK")
-            response = await asyncio.to_thread(getattr(client, "place_order"), signed)
+            signed = client.create_order(args)
+            response = await asyncio.to_thread(
+                client.post_order, signed, "IOC" if order_type == "IOC" else "FOK"
+            )
             responses.append(response)
         return responses
 

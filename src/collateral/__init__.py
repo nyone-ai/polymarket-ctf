@@ -73,8 +73,12 @@ class Collateral:
              "outputs": [{"name": "", "type": "bool"}]}
         ])
         approve_tx = usdc.functions.approve(onramp.address, amount_wei).build_transaction({
-            "from": recipient,
+            "nonce": w3.eth.get_transaction_count(recipient, "pending"),
+            "chainId": self.settings.chain_id,
+            "gas": 180000,
+            "gasPrice": w3.eth.gas_price,
         })
+
         signed = acct.sign_transaction(approve_tx)
         approve_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
         approve_receipt = w3.eth.wait_for_transaction_receipt(approve_hash)
@@ -82,8 +86,12 @@ class Collateral:
 
         # Step 2: Wrap USDC.e -> pUSD
         wrap_tx = onramp.functions.wrap(self.settings.usdce_address, recipient, amount_wei).build_transaction({
-            "from": recipient,
+            "nonce": w3.eth.get_transaction_count(recipient, "pending"),
+            "chainId": self.settings.chain_id,
+            "gas": 400000,
+            "gasPrice": w3.eth.gas_price,
         })
+
         signed = acct.sign_transaction(wrap_tx)
         wrap_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
         wrap_hash_receipt = w3.eth.wait_for_transaction_receipt(wrap_hash)
@@ -110,8 +118,12 @@ class Collateral:
              "outputs": [{"name": "", "type": "bool"}]}
         ])
         approve_tx = pusd.functions.approve(offramp.address, amount_wei).build_transaction({
-            "from": recipient,
+            "nonce": w3.eth.get_transaction_count(recipient, "pending"),
+            "chainId": self.settings.chain_id,
+            "gas": 180000,
+            "gasPrice": w3.eth.gas_price,
         })
+
         signed = acct.sign_transaction(approve_tx)
         approve_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
         approve_hash_receipt = w3.eth.wait_for_transaction_receipt(approve_hash)
@@ -119,8 +131,12 @@ class Collateral:
 
         # Step 2: Unwrap pUSD -> USDC.e
         unw_tx = offramp.functions.unwrap(self.settings.usdce_address, recipient, amount_wei).build_transaction({
-            "from": recipient,
+            "nonce": w3.eth.get_transaction_count(recipient, "pending"),
+            "chainId": self.settings.chain_id,
+            "gas": 350000,
+            "gasPrice": w3.eth.gas_price,
         })
+
         signed = acct.sign_transaction(unw_tx)
         unw_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
         unw_hash_receipt = w3.eth.wait_for_transaction_receipt(unw_hash)

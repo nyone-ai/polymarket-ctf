@@ -45,11 +45,9 @@ class CtfAdapter:
     def _get_exchange(self):
         w3 = self._web3()
         if self._exchange is None:
-            addr = (
-                self.settings.ctf_collateral_adapter_address or self.settings.ctf_exchange_address
-            )
+            addr = self.settings.ctf_collateral_adapter_address
             if not addr:
-                raise RuntimeError("ctf_collateral_adapter_address not configured")
+                raise RuntimeError("ctf_collateral_adapter_address required for mergePositions; the CTF Exchange has no mergePositions")
             self._exchange = w3.eth.contract(address=addr, abi=CTF_MERGE_ABI)
         return self._exchange
 
@@ -93,7 +91,8 @@ class CtfAdapter:
         })
 
         signed = acct.sign_transaction(tx)
-        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        raw_tx = getattr(signed, "raw_transaction", None) or signed.rawTransaction
+        tx_hash = w3.eth.send_raw_transaction(raw_tx)
         logger.info(
             "CTF merge submitted: condition=%s amount=%s tx=%s",
             condition_id, amount, tx_hash.hex(),

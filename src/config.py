@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     clob_api_secret: Optional[str] = None
     clob_api_passphrase: Optional[str] = None
     clob_api_l2: bool = False
+    clob_signature_type: int = 0  # 0=EOA, 1=POLY_PROXY
     ctf_exchange_address: Optional[str] = None
     neg_risk_exchange_address: Optional[str] = None
     neg_risk_adapter_address: Optional[str] = None
@@ -93,6 +94,13 @@ class Settings(BaseSettings):
     @classmethod
     def _normalize_enumish(cls, v: str) -> str:
         return v.strip().lower() if isinstance(v, str) else v
+
+    @field_validator("clob_signature_type")
+    @classmethod
+    def _validate_clob_signature_type(cls, v: int) -> int:
+        if v not in {0, 1}:
+            raise ValueError("clob_signature_type must be 0 (EOA) or 1 (POLY_PROXY)")
+        return v
 
     @field_validator("order_type")
     @classmethod

@@ -148,4 +148,4 @@ async def test_trade_store_record_and_pnl_roundtrip(tmp_path, opportunity):
     assert recent[0]["market_slug"] == "test-market"
     assert len(pnl) == 1
     assert pnl[0]["trades_count"] == 1
-    assert pnl[0]["pnl_est"] == pytest.approx(9.8)  # 10.0 -  ˋtwo fills x 0.1 fees
+    assert pnl[0]["pnl_est"] == pytest.approx(0.3)  # size 10*(1-0.95)=0.5 - fees 0.2

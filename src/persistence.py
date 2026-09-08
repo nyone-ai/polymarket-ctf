@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS trades (
     no_price REAL NOT NULL,
     size REAL NOT NULL,
     fee_usd REAL NOT NULL DEFAULT 0.0,
+    cost_basis REAL NOT NULL DEFAULT 0.0,
     merge_amount REAL NOT NULL DEFAULT 0.0,
     tx_hash TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
@@ -71,6 +72,7 @@ class TradeStore:
         opp = record.opportunity
         market = opp.market
         total_fee = sum(f.fee_usd for f in (record.fills or []))
+        pair_cost = (record.pportunity.yes_ask + record.opportunity.no_ask) if record.opportunity else 0.0
         if record.merge is not None:
             size = record.merge.merged_amount
             tx_hash = record.merge.tx_hash
@@ -92,6 +94,7 @@ class TradeStore:
             opp.no_ask,
             size,
             total_fee,
+            pair_cost * size + total_fee,
             size,
             tx_hash,
             record.status,
@@ -100,20 +103,21 @@ class TradeStore:
         sql = """
             INSERT INTO trades (
                 ts, mode, market_slug, condition_id, yes_token_id, no_token_id,
-                yes_price, no_price, size, fee_usd, merge_amount, tx_hash, status, error
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                yes_price, no_price, size, fee_usd, cost_basis, merge_amount, tx_hash, status, error
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         try:
             await self._execute(sql, row)
-            await self._update_daily_pnl(record.ts.date(), size, total_fee, record.status)
+            await self._update_daily_pnl(record.ts.date(), size, pair_cost * size + total_fee, total_fee, record.status)
         except Exception as exc:  # pragma: no cover
             logger.exception("failed to persist trade record: %s", exc)
 
-    async def _update_daily_pnl(self, day: date, size: float, fee: float, status: str) -> None:
+    async def _update_daily_pnl(self, day: date, size: float, cost_basis: float, fee: float, status: str) -> None:
         """Accumulate per-day PnL estimates for settled trades."""
         if status != "settled" or size <= 0:
             return
         gain_est = size - fee
+        pnl_est = size - cost_basis
         async with self._lock:
             await self._conn.execute(
                 """
@@ -125,7 +129,7 @@ class TradeStore:
                     pnl_est = pnl_est + excluded.pnl_est,
                     trades_count = trades_count + 1
                 """,
-                (day.isoformat(), gain_est, fee, gain_est),
+                (day.isoformat(), gain_est, fee, pnl_est),
             )
             await self._conn.commit()
 
