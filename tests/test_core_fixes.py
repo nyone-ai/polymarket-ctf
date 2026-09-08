@@ -3,8 +3,12 @@ from types import SimpleNamespace
 import pytest
 
 from src.models import Market, Side
+from src.config import Settings
+from src.executor import Executor
+from src.wallet import EoWallet
 from src.notifier import Notifier
 from src.risk import find_opportunity
+from src.risk import RiskManager
 from src.scanner.clob import ClobClient
 
 
@@ -62,3 +66,57 @@ async def test_notifier_uses_instance_settings():
     await notifier.send("alert")
 
     assert calls == [("https://api.telegram.org/bottoken/sendMessage", {"chat_id": "chat", "text": "alert"})]
+
+
+def test_environment_values_override_yaml(tmp_path, monkeypatch):
+    path = tmp_path / "settings.yaml"
+    path.write_text("mode: paper\norder_type: FOK\n", encoding="utf-8")
+    monkeypatch.setenv("MODE", "live")
+    monkeypatch.setenv("ORDER_TYPE", "ioc")
+
+    settings = Settings.from_yaml(path)
+
+    assert settings.mode == "live"
+    assert settings.order_type == "IOC"
+
+
+@pytest.mark.asyncio
+async def test_paper_mode_never_calls_live_executor(monkeypatch):
+    settings = Settings(mode="paper")
+    executor = Executor(settings)
+    opportunity = find_opportunity(
+        Market("condition", "question", yes_token_id="yes", no_token_id="no"),
+        _book_with_asks(),
+        settings,
+    )
+    assert opportunity is not None
+
+    async def fail_live(*args):
+        raise AssertionError("paper execution must not enter the live path")
+
+    monkeypatch.setattr(executor, "_execute_live", fail_live)
+    result = await executor.execute(opportunity, 1)
+
+    assert result.status == "settled"
+
+
+def _book_with_asks():
+    client = ClobClient()
+    book = client._parse_book("yes", {"asks": [{"price": "0.49", "size": "200"}]})
+    book.asks_no = client._parse_book("no", {"asks": [{"price": "0.49", "size": "200"}]}).asks_yes
+    return book
+
+
+@pytest.mark.asyncio
+async def test_placeholder_clob_rest_path_fails_closed():
+    wallet = EoWallet(Settings(private_key="0x" + "1" * 64, wallet_address="0x" + "2" * 40))
+
+    with pytest.raises(NotImplementedError, match="refusing to fabricate"):
+        await wallet.submit_and_wait({"token_id": "token"})
+
+
+def test_daily_loss_limit_halts_subsequent_trades():
+    risk = RiskManager(Settings(max_daily_loss=10))
+
+    assert risk.check_daily_loss(-10) is False
+    assert risk.can_trade() is False

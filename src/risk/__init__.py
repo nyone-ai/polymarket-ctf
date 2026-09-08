@@ -59,9 +59,12 @@ class RiskManager:
         self._opened_at = 0.0
         self._day_start = 0.0
         self._day_pnl = 0.0
+        self._trading_halted = False
         self._trade_timestamps = deque(maxlen=settings.max_trades_per_minute)
 
     def can_trade(self):
+        if self._trading_halted:
+            return False
         now = time.monotonic()
         if now - self._opened_at < self.settings.cooldown_seconds:
             return False
@@ -81,6 +84,7 @@ class RiskManager:
         self._day_pnl += day_pnl
         if self._day_pnl <= -self.settings.max_daily_loss:
             logger.error("Daily loss limit hit %s", self._day_pnl)
+            self._trading_halted = True
             return False
         return True
 

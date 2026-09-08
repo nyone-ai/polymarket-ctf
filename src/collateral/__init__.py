@@ -38,24 +38,18 @@ class Collateral:
     def _get_onramp(self):
         w3 = self._web3()
         if self._onramp is None:
-            addr = self.settings.ctf_exchange_address  # onramp is same as CTF exchange proxy area, but we use known address
-            # Actually CollateralOnramp address is separate
-            onramp_addr = self.settings.usdce_address  # fallback; should use settings
-            # Use the known Onramp address from config
-            onramp_addr = getattr(self.settings, "usdce_address", "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174")  # placeholder; will be overridden
-            # Better: read from settings if available
-            if hasattr(self.settings, "collateral_onramp_address") and self.settings.collateral_onramp_address:
-                onramp_addr = self.settings.collateral_onramp_address
-            else:
-                # Default to official Polygon mainnet address
-                onramp_addr = "0x93070a847efEf7F70739046A929D47a521F5B8ee"
+            onramp_addr = self.settings.collateral_onramp_address
+            if not onramp_addr:
+                raise RuntimeError("collateral_onramp_address not configured")
             self._onramp = w3.eth.contract(address=onramp_addr, abi=ONRAMP_WRAP_ABI)
         return self._onramp
 
     def _get_offramp(self):
         w3 = self._web3()
         if self._offramp is None:
-            offramp_addr = "0x2957922Eb93258b93368531d39fAcCA3B4dC5854"  # official Offramp
+            offramp_addr = self.settings.collateral_offramp_address
+            if not offramp_addr:
+                raise RuntimeError("collateral_offramp_address not configured")
             self._offramp = w3.eth.contract(address=offramp_addr, abi=OFFRAMP_UNWRAP_ABI)
         return self._offramp
 
