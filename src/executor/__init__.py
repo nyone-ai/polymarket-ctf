@@ -149,12 +149,20 @@ class Executor:
             )
 
         # 5. Build trade record
+        # Realized PnL for a merged pair: every merged share redeems at 1.0,
+        # so proceeds == merge_amount (1 unit each of YES+NO, at $1 total).
+        # Cost basis is the (yes_price + no_price) paid per pair; realized PnL
+        # is the difference, minus fees paid.
+        total_fee = yes_fill.fee_usd + no_fill.fee_usd
+        gain_est = merge_amount - (yes_fill.price + no_fill.price) * merge_amount
+        realized_pnl_usd = gain_est - total_fee
         merged = MergeResult(
             market=opp.market,
             yes_fill=yes_fill,
             no_fill=no_fill,
             merged_amount=merge_amount,
             tx_hash=merge_tx,
+            realized_pnl_usd=realized_pnl_usd,
         )
         record = TradeRecord(
             opportunity=opp,

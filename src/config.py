@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     # --- Wallet ---
     private_key: Optional[str] = None
     wallet_address: Optional[str] = None
+    polymarket_proxy_address: Optional[str] = None
 
     # --- RPC / chain ---
     rpc_url: str = "https://polygon-rpc.com"

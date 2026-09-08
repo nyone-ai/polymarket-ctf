@@ -116,9 +116,13 @@ class EoWallet:
                 from py_clob_client.client import ClobClient
                 kwargs = {}
                 if self.settings.clob_signature_type == 1:
-                    # POLY_PROXY signature: funder must be the EOA owning the proxy.
-
-                    kwargs["funder"] = self.address
+                    # POLY_PROXY signature: funder must be the proxy wallet address
+                    # that holds the funds, not the EOA that signs.
+                    if not self.settings.polymarket_proxy_address:
+                        raise RuntimeError(
+                            "polymarket_proxy_address required when clob_signature_type=1 (POLY_PROXY)"
+                        )
+                    kwargs["funder"] = self.settings.polymarket_proxy_address
                 self._sdk = ClobClient(
                     self.settings.clob_host,
                     key=self.settings.private_key,

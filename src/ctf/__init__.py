@@ -101,14 +101,17 @@ class CtfAdapter:
         adapter = self._get_exchange()
         amount_wei = to_wei(amount, 6)
         self._ensure_ctf_approval(w3, acct, adapter.address)
-        if not adapter.functions.mergePositions(
-            "0x0000000000000000000000000000000000000000",
-            "0x" + "0" * 64,
-            condition_id,
-            [1, 2],
-            amount_wei,
-        ).call({"from": acct.address}):
-            raise RuntimeError("CTF adapter mergePositions call() returned falsy; cannot merge")
+        # Preflight: a revert raises here; a void function returns [] on success.
+        try:
+            adapter.functions.mergePositions(
+                "0x0000000000000000000000000000000000000000",
+                "0x" + "0" * 64,
+                condition_id,
+                [1, 2],
+                amount_wei,
+            ).call({"from": acct.address})
+        except Exception as exc:
+            raise RuntimeError(f"CTF adapter mergePositions preflight reverted: {exc}") from exc
         tx = adapter.functions.mergePositions(
             "0x0000000000000000000000000000000000000000",  # collateralToken (ignored by adapter)
             "0x" + "0" * 64,  # parentCollectionId (ignored by adapter)
