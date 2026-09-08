@@ -56,7 +56,7 @@ async def run(settings):
                     record = await executor.execute(opp, size)
                     risk.mark_open()
                     if record.status == "settled":
-                        risk.check_daily_loss(-size * opp.profit_per_pair)
+                        risk.check_daily_loss(size * opp.profit_per_pair)
                     else:
                         logger.warning("Trade %s did not settle: %s", m.slug, record.error)
                     msg = "CTF arb: " + m.slug + " size=" + str(size) + " profit=" + str(opp.profit_per_pair) + " status=" + record.status

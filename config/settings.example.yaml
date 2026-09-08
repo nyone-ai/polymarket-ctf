@@ -12,7 +12,7 @@ cooldown_seconds:  5
 max_trades_per_minute:  10
 reserve_gas_usd:  2.0
 
-order_type: FOK             # FOK | IOC
+order_type: FOK             # FOK (fill-or-kill) | FAK (fill-and-kill)
 excess_mode: cancel         # cancel | sell
 merge_mode: adapter         # adapter | ctf_direct
 auto_wrap_usdce: false
@@ -41,15 +41,6 @@ ctf_collateral_adapter_address: "0xAdA100Db00Ca00073811820692005400218FcE1f"  # 
 ctf_condition_tokens_address: "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"  # Conditional Tokens (CTF
 wrapper_usdc_address: "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"  # pUSD proxy
 pusd_address: "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"  # pUSD proxy
-usdce_address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"  # USDC.e bridged
-collateral_onramp_address: "0x93070a847efEf7F70739046A929D47a521F5B8ee"  # USDC.e -> pUSD
-collateral_offramp_address: "0x2957922Eb93258b93368531d39fAcCA3B4dC5854"  # pUSD -> USDC.e
-# --- Flash loan (Morpho Blue, optional) ---
-flashloan_enabled: false
-morpho_blue_address: ""
-morpho_flashloan_caller: ""
-morpho_loan_token: ""
-
 # Opsional
 matic_usd_price:               # kosong = auto-fetch
 telegram:

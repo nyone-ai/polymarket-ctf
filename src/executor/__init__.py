@@ -93,7 +93,7 @@ class Executor:
         Live execution: buy YES+NO via CLOB + merge into pUSD via CTF.
         
         Steps:
-        1. Place CLOB orders for YES and NO (FOK or IOC)
+        1. Place CLOB orders for YES and NO (FOK or FAK)
         2. Wait for both orders to fill
         3. Execute CTF mergePositions to convert YES+NO -> pUSD
         4. Handle partial fills, excess tokens, gas, timeout
@@ -137,12 +137,11 @@ class Executor:
         )
 
         # 3. Execute CTF merge to convert YES+NO -> pUSD
-        merge_tx = await self._execute_ctf_merge(
-            opp, merge_amount, excess_yes, excess_no
-        )
+        merge_tx = await self._execute_ctf_merge(opp, merge_amount)
 
         # 4. Handle any excess tokens that weren't part of the merge
         if excess_yes > 0 or excess_no > 0:
+            await self._handle_excess(opp, excess_yes, excess_no)
             logger.info(
                 "Keeping excess tokens as position: YES=%s NO=%s",
                 excess_yes, excess_no,
@@ -179,27 +178,32 @@ class Executor:
         """
         Place YES and NO orders via CLOB.
         For FOK: if full fill not available, the order is killed.
-        For IOC: partial fills are accepted; remaining is cancelled.
+        FAK: partial fills are accepted; unmatchable remainder is cancelled.
         
         Uses py-clob-client SDK if available, otherwise falls back to REST + EIP-712 signing.
         """
         order_type = self.settings.order_type
+        # CLOB has no IOC; FAK (fill-and-kill) is the closest equivalent: partial
+        # fills are allowed, unmatchable remainder is cancelled.
+        if order_type == "IOC":
+            order_type = "FAK"
         logger.info("Placing CLOB orders: YES @ %s, NO @ %s, size=%s, type=%s",
                      opp.yes_ask, opp.no_ask, size, order_type)
 
+        ot = OrderType.FOK if order_type == "FOK" else OrderType.FAK
         yes_req = OrderRequest(
             token_id=opp.market.yes_token_id,
             side=Side.YES,
             price=opp.yes_ask,
             size=size,
-            order_type=OrderType.FOK if order_type == "FOK" else (OrderType.IOC if order_type == "IOC" else OrderType.FOK),
+            order_type=ot,
         )
         no_req = OrderRequest(
             token_id=opp.market.no_token_id,
             side=Side.NO,
             price=opp.no_ask,
             size=size,
-            order_type=yes_req.order_type,
+            order_type=ot,
         )
 
         if self.wallet is None:
@@ -229,7 +233,7 @@ class Executor:
         }
 
         responses = await self.wallet.place_orders(
-            [order_params], order_type=req.order_type.value
+            [order_params], order_type=req.order_type
         )
         fills = self.wallet.parse_fills(responses)
 
@@ -273,8 +277,6 @@ class Executor:
         self,
         opp: Opportunity,
         merge_amount: float,
-        excess_yes: float,
-        excess_no: float,
     ) -> str:
         """
         Execute CTF mergePositions to convert YES+NO -> pUSD.
@@ -324,6 +326,9 @@ class Executor:
         else:
             logger.warning("Unknown excess_mode: %s; leaving tokens in position", self.settings.excess_mode)
 
-    async def _stub_delay(self):
-        await asyncio.sleep(0.0)
+    async def close(self):
+        """Close the shared CLOB HTTP client and wallet SDK resources."""
+        if self._clob is not None:
+            await self._clob.close()
+            self._clob = None
 

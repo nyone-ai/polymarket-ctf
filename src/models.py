@@ -14,8 +14,9 @@ class Side(str, Enum):
 
 class OrderType(str, Enum):
     FOK = "FOK"
-    IOC = "IOC"
+    FAK = "FAK"
     GTC = "GTC"
+    GTD = "GTD"
 
 
 class TradeMode(str, Enum):

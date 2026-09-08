@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     reserve_gas_usd: float =   2.0
 
     # --- Execution ---
-    order_type: str = "FOK"  # FOK | IOC
+    order_type: str = "FOK"  # FOK fill-or-kill; FAK fill-and-kill (partial fills dibatalkan)
     excess_mode: str = "cancel"  # cancel | sell
     merge_mode: str = "adapter"  # adapter | ctf_direct
     auto_wrap_usdce: bool = False
@@ -68,12 +68,6 @@ class Settings(BaseSettings):
     pusd_address: Optional[str] = None
     collateral_onramp_address: Optional[str] = None
     collateral_offramp_address: Optional[str] = None
-
-    # --- Flash loan (Morpho Blue singleton on Polygon) ---
-    flashloan_enabled: bool = False
-    morpho_blue_address: Optional[str] = None
-    morpho_flashloan_caller: Optional[str] = None
-    morpho_loan_token: Optional[str] = None
 
     # --- Scanner / watchlist ---
     watchlist_mode: str = "explicit"  # explicit | auto | hybrid
@@ -120,8 +114,8 @@ class Settings(BaseSettings):
     def _validate_values(self) -> "Settings":
         if self.mode not in {"paper", "live"}:
             raise ValueError("mode must be 'paper' or 'live'")
-        if self.order_type not in {"FOK", "IOC"}:
-            raise ValueError("order_type must be FOK or IOC")
+        if self.order_type not in {"FOK", "FAK"}:
+            raise ValueError("order_type must be FOK or FAK")
         if not 0 < self.threshold <= 1:
             raise ValueError("threshold must be greater than 0 and at most 1")
         if self.max_size_per_trade <= 0 or self.poll_interval <= 0:

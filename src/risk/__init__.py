@@ -24,6 +24,12 @@ def best_ask(book, side):
     return levels[0]
 
 
+def ask_depth(book, side, max_price):
+    """Total size of ask levels fillable in one FOK (at or below best ask)."""
+    levels = book.asks_yes if side is Side.YES else book.asks_no
+    return sum(q.size for q in levels if q.price <= max_price + 1e-9)
+
+
 def find_opportunity(market, book, settings) -> Optional[Opportunity]:
     # Guard against zero-size ask levels (they cannot be filled)..
     y = best_ask(book, Side.YES)
@@ -37,7 +43,7 @@ def find_opportunity(market, book, settings) -> Optional[Opportunity]:
         return None
     if margin_bps < settings.min_profit_margin_bps:
         return None
-    size = min(y.size, n.size)
+    size = min(ask_depth(book, Side.YES, y.price), ask_depth(book, Side.NO, n.price))
     max_cost = settings.max_size_per_trade
     if size * total > max_cost:
         size = max_cost / total
