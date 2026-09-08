@@ -57,11 +57,18 @@ class RiskManager:
         self.settings = settings
         self.trades = []
         self._opened_at = 0.0
-        self._day_start = 0.0
+        self._day_start = self._current_day()
         self._day_pnl = 0.0
+        self._trading_halted = False
         self._trade_timestamps = deque(maxlen=settings.max_trades_per_minute)
 
+    @staticmethod
+    def _current_day():
+        return datetime.datetime.now(datetime.timezone.utc).date()
+
     def can_trade(self):
+        if self._trading_halted:
+            return False
         now = time.monotonic()
         if now - self._opened_at < self.settings.cooldown_seconds:
             return False
@@ -78,9 +85,16 @@ class RiskManager:
         self._trade_timestamps.append(self._opened_at)
 
     def check_daily_loss(self, day_pnl):
+        today = self._current_day()
+        if today != self._day_start:
+            logger.info("New trading day, resetting daily loss halt")
+            self._day_start = today
+            self._day_pnl = 0.0
+            self._trading_halted = False
         self._day_pnl += day_pnl
         if self._day_pnl <= -self.settings.max_daily_loss:
             logger.error("Daily loss limit hit %s", self._day_pnl)
+            self._trading_halted = True
             return False
         return True
 

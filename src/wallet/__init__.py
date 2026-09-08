@@ -42,15 +42,9 @@ class EoWallet:
         
         Returns signed order dict suitable for submission.
         """
-        # This is a simplified version; actual implementation depends on py-clob-client
-        logger.warning("sign_order: using simplified signing (needs py-clob-client)")
-        return {
-            "token_id": token_id,
-            "price": str(price),
-            "size": str(size),
-            "side": side,
-            "signature": "0x...",  # Placeholder
-        }
+        raise NotImplementedError(
+            "Manual CLOB REST signing is not implemented; use a verified py-clob-client integration"
+        )
 
     async def submit_and_wait(self, order: dict, order_type: str = "FOK") -> dict:
         """
@@ -58,14 +52,9 @@ class EoWallet:
         
         Returns fill info dict.
         """
-        logger.info("submit_and_wait: order_type=%s, token_id=%s", order_type, order.get("token_id"))
-        # Placeholder implementation
-        return {
-            "price": float(order.get("price", 0)),
-            "size": float(order.get("size", 0)),
-            "fee": 0.0,
-            "tx_hash": "0xplaceholder",
-        }
+        raise NotImplementedError(
+            "Manual CLOB REST submission is not implemented; refusing to fabricate an order fill"
+        )
 
     async def execute_orders(self, orders: list, order_type: str = "FOK") -> str:
         """Execute multiple orders and return transaction hash."""

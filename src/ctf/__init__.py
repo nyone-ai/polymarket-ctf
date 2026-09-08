@@ -60,41 +60,9 @@ class CtfAdapter:
         
         Returns transaction hash.
         """
-        w3 = self._web3()
-        exchange = self._get_exchange()
-        
-        # Convert condition_id to bytes32
-        cond_bytes32 = self._to_bytes32(condition_id)
-        
-        if not yes_token_id or not no_token_id:
-            raise ValueError("yes_token_id and no_token_id required for merge")
-        
-        # Convert token IDs to bytes32
-        yes_bytes32 = self._to_bytes32(yes_token_id)
-        no_bytes32 = self._to_bytes32(no_token_id)
-        
-        # Convert amount to wei (18 decimals for CTF amounts)
-        amount_wei = to_wei(amount, 18)
-        
-        # Get the account from private key for local signing
-        from eth_account import Account
-        acct = Account.from_key(self.settings.private_key)
-        
-        # Build the transaction
-        nonce = w3.eth.get_transaction_count(acct.address)
-        tx = exchange.functions.mergePositions(cond_bytes32, yes_bytes32, no_bytes32, amount_wei).build_transaction({
-            "from": acct.address,
-            "nonce": nonce,
-            "gas": 300000,
-            "gasPrice": w3.to_wei("20", "gwei"),
-        })
-        
-        # Sign locally and send via send_raw_transaction
-        signed = acct.sign_transaction(tx)
-        tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
-        
-        logger.info("CTF merge submitted: condition=%s, amount=%s, tx=%s", condition_id, amount, tx_hash.hex())
-        return tx_hash.hex()
+        raise NotImplementedError(
+            "Live CTF merge is disabled until this adapter uses the verified Conditional Tokens ABI and contract address"
+        )
 
     def redeem(self, condition_id: str, amount: float, pUSD_token_id: str | None = None) -> str:
         """
@@ -140,7 +108,9 @@ class CtfAdapter:
             raise ValueError("wallet_address required to check balance")
         
         # pUSD token contract
-        pusd = w3.eth.contract(address=self.settings.wrapper_usdc_address, abi=[
+        if not self.settings.pusd_address:
+            raise RuntimeError("pusd_address not configured")
+        pusd = w3.eth.contract(address=self.settings.pusd_address, abi=[
             {"name": "balanceOf", "type": "function",
              "inputs": [{"name": "owner", "type": "address"}],
              "outputs": [{"name": "", "type": "uint256"}]}

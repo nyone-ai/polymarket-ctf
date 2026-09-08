@@ -19,6 +19,7 @@ from src.models import (
 
 from src.collateral import Collateral
 from src.ctf import CtfAdapter
+from src.utils.number import round_size
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ class Executor:
         size = round_size(size)
         if size <= 0:
             raise ValueError("size must be positive")
-        if self.settings.mode is TradeMode.PAPER:
+        if self.settings.mode == TradeMode.PAPER:
             return await self._execute_paper(opp, size)
         return await self._execute_live(opp, size)
 
@@ -181,17 +182,11 @@ class Executor:
             order_type=yes_req.order_type,
         )
 
-        # Use py-clob-client SDK if wallet is available, otherwise fall back to REST
-        try:
-            if self.wallet is not None:
-                yes_fill = await self._place_order_via_sdk(yes_req)
-                no_fill = await self._place_order_via_sdk(no_req)
-            else:
-                raise ImportError("No wallet available")
-        except (ImportError, RuntimeError):
-            logger.warning("SDK path unavailable, falling back to REST + EIP-712 signing")
-            yes_fill = await self._place_order_via_rest(yes_req)
-            no_fill = await self._place_order_via_rest(no_req)
+        if self.wallet is None:
+            from src.wallet import EoWallet
+            self.wallet = EoWallet(self.settings)
+        yes_fill = await self._place_order_via_sdk(yes_req)
+        no_fill = await self._place_order_via_sdk(no_req)
 
         logger.info("Order fills - YES: %s @ %s, NO: %s @ %s",
                      yes_fill.size, yes_fill.price, no_fill.size, no_fill.price)
@@ -246,30 +241,12 @@ class Executor:
         )
 
     async def _place_order_via_rest(self, req: OrderRequest) -> OrderFill:
-        """Fallback: place order via CLOB REST API + EIP-712 signing."""
-        from src.wallet import EoWallet
-        
-        if self.wallet is None:
-            self.wallet = EoWallet(self.settings)
-        
-        order = self.wallet.sign_order(
-            token_id=req.token_id,
-            price=req.price,
-            size=req.size,
-            side=req.side,
-        )
-        
-        # Submit to CLOB
-        fill_info = await self.wallet.submit_and_wait(order, order_type=req.order_type.value)
-        
-        return OrderFill(
-            token_id=req.token_id,
-            side=req.side,
-            price=fill_info["price"],
-            size=fill_info["size"],
-            fee_usd=fill_info.get("fee", 0),
-            tx_hash=fill_info.get("tx_hash"),
-        )
+        """Reject the obsolete placeholder REST fallback.
+
+        A locally fabricated signature or fill is unsafe in live trading.  Live
+        execution must use the SDK path until a fully tested REST signer exists.
+        """
+        raise RuntimeError("CLOB REST fallback is not implemented safely; use the SDK integration")
 
     async def _execute_ctf_merge(
         self,
@@ -320,27 +297,12 @@ class Executor:
             # Leave excess on-chain; they remain as positions
             logger.info("Excess tokens left in position (cancel mode): YES=%.6f, NO=%.6f", excess_yes, excess_no)
         elif self.settings.excess_mode == "sell":
-            # Sell excess tokens back via CLOB
-            logger.info("Selling excess tokens: YES=%.6f, NO=%.6f", excess_yes, excess_no)
-            if excess_yes > 0:
-                await self._place_order_via_rest(OrderRequest(
-                    token_id=opp.market.yes_token_id,
-                    side=Side.NO,  # Selling means NO side
-                    price=opp.no_ask,
-                    size=excess_yes,
-                ))
-            if excess_no > 0:
-                await self._place_order_via_rest(OrderRequest(
-                    token_id=opp.market.no_token_id,
-                    side=Side.YES,  # Selling means YES side
-                    price=opp.yes_ask,
-                    size=excess_no,
-                ))
+            raise RuntimeError(
+                "excess_mode=sell is disabled until the order model supports an explicit SELL direction"
+            )
         else:
             logger.warning("Unknown excess_mode: %s; leaving tokens in position", self.settings.excess_mode)
 
     async def _stub_delay(self):
         await asyncio.sleep(0.0)
-
-
 

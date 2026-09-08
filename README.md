@@ -202,6 +202,11 @@ Semua keputusan, sizing, dan PnL tercatat di state SQLite.
 
 ## Live Execution Flow
 
+> **Status keamanan:** live execution saat ini dinonaktifkan secara fail-closed.
+> Adapter CLOB dan CTF belum memiliki integrasi signing/ABI yang diverifikasi
+> end-to-end, sehingga bot menolak mengirim order atau transaksi nyata daripada
+> membuat fill atau signature palsu.
+
 1. Place YES and NO orders via CLOB (FOK or IOC).
 2. Wait for both orders to fill.
 3. Execute CTF `mergePositions` to convert YES+NO -> pUSD.

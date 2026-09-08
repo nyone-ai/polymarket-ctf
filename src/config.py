@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import os
 from pathlib import Path
 from typing import Optional
 
-from pydantic import PrivateAttr, field_validator
+from dotenv import dotenv_values
+from pydantic import Field, PrivateAttr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -64,7 +66,7 @@ class Settings(BaseSettings):
     # --- Scanner / watchlist ---
     watchlist_mode: str = "explicit"  # explicit | auto | hybrid
     watchlist_path: str = "config/markets.watchlist.json"
-    watchlist_condition_ids: list[str] = []  # manual condition_id list
+    watchlist_condition_ids: list[str] = Field(default_factory=list)  # manual condition_id list
     auto_discover: bool = True
     auto_discover_min_liquidity: float =   5000.0
     auto_discover_min_volume_24h: float =  1000.0
@@ -85,10 +87,29 @@ class Settings(BaseSettings):
 
     _config_file: Optional[Path] = PrivateAttr(default=None)
 
-    @field_validator("mode", "order_type", "excess_mode", "merge_mode", "watchlist_mode")
+    @field_validator("mode", "excess_mode", "merge_mode", "watchlist_mode")
     @classmethod
     def _normalize_enumish(cls, v: str) -> str:
         return v.strip().lower() if isinstance(v, str) else v
+
+    @field_validator("order_type")
+    @classmethod
+    def _normalize_order_type(cls, v: str) -> str:
+        return v.strip().upper() if isinstance(v, str) else v
+
+    @model_validator(mode="after")
+    def _validate_values(self) -> "Settings":
+        if self.mode not in {"paper", "live"}:
+            raise ValueError("mode must be 'paper' or 'live'")
+        if self.order_type not in {"FOK", "IOC"}:
+            raise ValueError("order_type must be FOK or IOC")
+        if not 0 < self.threshold <= 1:
+            raise ValueError("threshold must be greater than 0 and at most 1")
+        if self.max_size_per_trade <= 0 or self.poll_interval <= 0:
+            raise ValueError("max_size_per_trade and poll_interval must be positive")
+        if self.max_trades_per_minute <= 0:
+            raise ValueError("max_trades_per_minute must be positive")
+        return self
 
     @field_validator("private_key")
     @classmethod
@@ -115,7 +136,17 @@ class Settings(BaseSettings):
                             data[f"{sec_name}_{sk}"] = sv
 
                     merged = settings.model_dump()
-                    merged.update({k: v for k, v in data.items() if k in cls.model_fields})
+                    dotenv = dotenv_values(".env")
+                    field_names = {name.lower() for name in cls.model_fields}
+                    configured_env_keys = {
+                        key.lower()
+                        for key, value in {**dotenv, **dict(os.environ)}.items()
+                        if value is not None and key.lower() in field_names
+                    }
+                    merged.update({
+                        k: v for k, v in data.items()
+                        if k in cls.model_fields and k.lower() not in configured_env_keys
+                    })
                     settings = cls(**merged)
         return settings
 
@@ -137,7 +168,4 @@ def get_settings(path: str | Path | None = None) -> Settings:
     """Cached settings singleton."""
 
     return Settings.from_yaml(path)
-
-
-
 
