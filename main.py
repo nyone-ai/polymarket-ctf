@@ -10,6 +10,7 @@ from src.config import Settings
 from src.executor import Executor
 from src.notifier import Notifier
 from src.risk import RiskManager, find_opportunity
+from src.persistence import TradeStore
 from src.scanner import ClobClient, resolve_watchlist
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,9 @@ def build_logging(verbose):
 async def run(settings):
     notifier = Notifier(settings)
     client = ClobClient()
-    executor = Executor(settings, clob=client)
+    store = TradeStore()
+    await store.init()
+    executor = Executor(settings, clob=client, store=store)
     risk = RiskManager(settings)
     logger.info("Starting bot mode=%s", settings.mode)
     try:
@@ -64,6 +67,7 @@ async def run(settings):
     finally:
         await notifier.close()
         await client.close()
+        await store.close()
 
 
 def main():

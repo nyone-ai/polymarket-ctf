@@ -56,7 +56,9 @@ class Settings(BaseSettings):
     clob_api_passphrase: Optional[str] = None
     clob_api_l2: bool = False
     ctf_exchange_address: Optional[str] = None
+    neg_risk_exchange_address: Optional[str] = None
     neg_risk_adapter_address: Optional[str] = None
+    ctf_collateral_adapter_address: Optional[str] = None
     wrapper_usdc_address: Optional[str] = None
     usdce_address: Optional[str] = None
     pusd_address: Optional[str] = None
@@ -109,7 +111,54 @@ class Settings(BaseSettings):
             raise ValueError("max_size_per_trade and poll_interval must be positive")
         if self.max_trades_per_minute <= 0:
             raise ValueError("max_trades_per_minute must be positive")
+
+        if self.mode == "live":
+            self._validate_live_credentials()
         return self
+
+    def _validate_live_credentials(self) -> None:
+        if not self.private_key or not self.wallet_address:
+            raise ValueError("mode=live requires PRIVATE_KEY and WALLET_ADDRESS")
+        if not self.rpc_url or not self.clob_api_key:
+            raise ValueError("mode=live requires RPC_URL and CLOB_API_KEY")
+        pk_raw = self.private_key.strip()
+        if pk_raw.lower().startswith("0x"):
+            pk_raw = pk_raw[2:]
+        if len(pk_raw) != 64:
+            raise ValueError("PRIVATE_KEY must be 32 bytes (0x + 64 hex chars)")
+        try:
+            int(pk_raw, 16)
+        except ValueError:
+            raise ValueError("PRIVATE_KEY must contain only hex characters")
+        self._validate_address("WALLET_ADDRESS", self.wallet_address, expect_bytes=20)
+        try:
+            from eth_account import Account
+            derived = Account.from_key(pk_raw).address
+            if derived.lower() != self.wallet_address.lower():
+                raise ValueError(
+                    "WALLET_ADDRESS does not match derived address from PRIVATE_KEY "
+                    f"(derived={derived})"
+                )
+        except ValueError as exc:
+            raise ValueError(f"invalid PRIVATE_KEY/WALLET_ADDRESS pair: {exc}") from exc
+
+    @staticmethod
+    def _validate_address(label: str, value: Optional[str], expect_bytes: int) -> None:
+        if not value:
+            raise ValueError(f"{label} is required")
+        v = value.strip()
+        if not v.lower().startswith("0x"):
+            raise ValueError(f"{label} must be a hex string starting with 0x")
+        body = v[2:]
+        expected_len = expect_bytes * 2
+        if len(body) != expected_len:
+            raise ValueError(
+                f"{label} must be a {expect_bytes}-byte address (0x + {expected_len} hex chars, got {len(body)}"
+            )
+        try:
+            int(body, 16)
+        except ValueError:
+            raise ValueError(f"{label} must contain only hex characters") from None
 
     @field_validator("private_key")
     @classmethod

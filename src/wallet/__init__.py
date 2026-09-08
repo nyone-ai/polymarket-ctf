@@ -1,23 +1,23 @@
-"""Wallet module: EOA wallet with CLOB signing and CTF transaction capabilities."""
+"""Wallet module: EOA wallet with py-clob-client v2 order placement."""
 from __future__ import annotations
 
+import asyncio
 import logging
-import os
 from typing import Optional
 
 from src.config import Settings
-from src.utils.number import to_wei
 
 logger = logging.getLogger(__name__)
 
 
 class EoWallet:
-    """EOA wallet for signing CLOB orders and CTF transactions."""
+    """EOA wallet for signing and submitting CLOB orders (py-clob-client v2)."""
 
     def __init__(self, settings: Settings):
         self.settings = settings
         self._w3 = None
         self._account = None
+        self._sdk = None
 
     def _web3(self):
         if self._w3 is None:
@@ -28,55 +28,110 @@ class EoWallet:
     def _account_obj(self):
         if self._account is None:
             from eth_account import Account
-            self._account = Account.from_key(self.settings.private_key)
+            self._account = Account.from_key(self._normalize_key(self.settings.private_key))
         return self._account
+
+    @staticmethod
+    def _normalize_key(key: str) -> str:
+        """Strip the 0x prefix if present."""
+        return key.strip().removeprefix("0x")
 
     @property
     def address(self) -> str:
-        """Get wallet address."""
+        """Derived wallet address from the private key."""
         return self._account_obj().address
 
-    def sign_order(self, token_id: str, price: float, size: float, side: str = "BUY") -> dict:
+    def parse_fills(self, responses) -> list:
+        """Normalize py-clob-client responses into a list of fill dicts."""
+
+        if not responses:
+            return []
+        if isinstance(responses, dict):
+            responses = [responses]
+        fills = []
+        for item in responses:
+            if not isinstance(item, dict):
+                continue
+            status = str(item.get("status") or "" ).upper()
+            data = item.get("data") or []
+            if isinstance(data, list) and data:
+                fills.extend(self.parse_fills(data))
+                continue
+            matched = status == "MATCHED" or status in {"FILLED", "FILL", "SUCCESS"}
+            if not matched:
+                continue
+            txs = item.get("transactionsHashes") or item.get("transaction_hash") or []
+            fills.append({
+                "token_id": item.get("token_id") or item.get("asset_id") or item.get("tokenId"),
+                "price": float(item.get("price") or 0.0),
+                "size": float(item.get("size") or 0.0),
+                "fee": float(item.get("fee") or 0.0),
+                "status": status,
+                "tx_hash": txs[0] if isinstance(txs, list) and txs else (txs if isinstance(txs, str) else None),
+                "order_id": item.get("orderID") or item.get("order_id"),
+                "trade_ids": item.get("tradeIDs") or item.get("trade_ids") or [],
+            })
+        return fills
+
+    async def place_orders(self, orders: list, order_type: str = "FOK", client=None) -> list:
+        """Place CLOB orders via the py-clob-client v2 SDK.
+
+
+
+
+        Each item in ``orders`` is a dict with token_id/price/size.
+        Returns the raw responses list (feeds into ``parse_fills``).
         """
-        Sign a CLOB order using EIP-712.
-        
-        Returns signed order dict suitable for submission.
-        """
-        raise NotImplementedError(
-            "Manual CLOB REST signing is not implemented; use a verified py-clob-client integration"
-        )
+        if not orders:
+            return []
+        logger.info("Placing %d CLOB orders (type=%s)", len(orders), order_type)
+        try:
+            from py_clob_client.clob_types import OrderArgs
+            from py_clob_client.order_builder.constants import BUY
+            from py_clob_client.order_builder.common import create_order
+        except ImportError as exc:
+            raise RuntimeError(
+                "py-clob-client SDK is not installed; cannot place live CLOB orders."
+            ) from exc
+
+        if client is None:
+            if self._sdk is None:
+                from py_clob_client.client import ClobClient
+
+                self._sdk = ClobClient(
+                    self.settings.clob_host,
+                    key=self.settings.private_key,
+                    chain_id=self.settings.chain_id,
+                    signature_type=1,  # POLY_PROXY
+                    funder=self.settings.wallet_address,
+                )
+            client = self._sdk
+
+        responses = []
+        for order in orders:
+            args = OrderArgs(
+                price=float(order["price"]),
+                size=float(order["size"]),
+                side=BUY,
+                token_id=str(order["token_id"]),
+            )
+            signed = create_order(args, "IOC" if order_type == "IOC" else "FOK")
+            response = await asyncio.to_thread(getattr(client, "place_order"), signed)
+            responses.append(response)
+        return responses
+
+    async def sign_order(self, token_id: str, price: float, size: float, side: str = "BUY") -> dict:
+        """Placeholder for manual EIP-712 signing; not used in the live v2 flow."""
+        raise NotImplementedError("manual REST signing is not used; use place_orders instead")
 
     async def submit_and_wait(self, order: dict, order_type: str = "FOK") -> dict:
-        """
-        Submit signed order to CLOB and wait for fill.
-        
-        Returns fill info dict.
-        """
-        raise NotImplementedError(
-            "Manual CLOB REST submission is not implemented; refusing to fabricate an order fill"
-        )
-
-    async def execute_orders(self, orders: list, order_type: str = "FOK") -> str:
-        """Execute multiple orders and return transaction hash."""
-        logger.info("execute_orders: %d orders, type=%s", len(orders), order_type)
-        raise RuntimeError("execute_orders: py-clob-client SDK integration not implemented")
+        """Placeholder for the removed REST fallback; refuse to fabricate fills."""
+        raise NotImplementedError("refusing to fabricate an order fill; live orders go via place_orders")
 
     async def wait_for_fills(self, tx_hash: str) -> list:
-        """Wait for order fills and return fill info list."""
-        logger.info("wait_for_fills: tx=%s", tx_hash)
-        raise RuntimeError("wait_for_fills: py-clob-client SDK integration not implemented")
+        """Placeholder for the removed polling flow."""
+        raise NotImplementedError("polling fills is replaced by parsing place_orders responses directly")
 
-
-def get_wallet(settings: Settings) -> Optional[EoWallet]:
-    """Get wallet instance if credentials are available."""
-    if not settings.private_key or not settings.wallet_address:
-        return None
-    return EoWallet(settings)
-
-
-def get_account(settings: Settings):
-    """Get web3 Account from settings."""
-    if not settings.private_key:
-        return None
-    from eth_account import Account
-    return Account.from_key(settings.private_key)
+    async def execute_orders(self, orders: list, order_type: str = "FOK") -> str:
+        """Placeholder retained for compatibility."""
+        raise NotImplementedError("use place_orders + parse_fills instead")
