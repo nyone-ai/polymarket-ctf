@@ -8,9 +8,9 @@ min_profit_usd: 1.0
 min_profit_margin_bps: 10
 max_size_per_trade: 500     # USDC/pUSD per trade per sisi
 max_daily_loss: 100
-cooldown_seconds:  ️5
-max_trades_per_minute:  ️10
-reserve_gas_usd:  ️2.0
+cooldown_seconds:  5
+max_trades_per_minute:  10
+reserve_gas_usd:  2.0
 
 order_type: FOK             # FOK | IOC
 excess_mode: cancel         # cancel | sell
@@ -34,17 +34,28 @@ fee_rate_bps_override:
 
 # Opsional alamat kontrak Polygon Mainnet (diambil dari docs.polymarket.com/resources/contracts)
 # Nilai ini sesuai alamat resmi CTF V2 dan collateral contracts.
-ctf_exchange_address: 0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E
-neg_risk_adapter_address: 0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296
-wrapper_usdc_address: 0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB  # pUSD proxy
-usdce_address: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174
+ctf_exchange_address: "0xE111180000d2663C0091e4f400237545B87B996B"  # CTF Exchange V2
+neg_risk_exchange_address: "0xe2222d279d744050d28e00520010520000310F59"  # NegRisk CTF Exchange V2
+neg_risk_adapter_address: "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296"  # NegRisk Adapter (CLOB v1, deprecated)
+ctf_collateral_adapter_address: "0xAdA100Db00Ca00073811820692005400218FcE1f"  # CtfCollateralAdapter (merge/split
+ctf_condition_tokens_address: "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045"  # Conditional Tokens (CTF
+wrapper_usdc_address: "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"  # pUSD proxy
+pusd_address: "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"  # pUSD proxy
+usdce_address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"  # USDC.e bridged
+collateral_onramp_address: "0x93070a847efEf7F70739046A929D47a521F5B8ee"  # USDC.e -> pUSD
+collateral_offramp_address: "0x2957922Eb93258b93368531d39fAcCA3B4dC5854"  # pUSD -> USDC.e
+# --- Flash loan (Morpho Blue, optional) ---
+flashloan_enabled: false
+morpho_blue_address: ""
+morpho_flashloan_caller: ""
+morpho_loan_token: ""
 
 # Opsional
 matic_usd_price:               # kosong = auto-fetch
 telegram:
   bot_token:
   chat_id:
-  rate_limit_per_min:  ️20
+  rate_limit_per_min:  20
 
 logging:
   level: INFO

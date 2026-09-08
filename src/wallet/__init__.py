@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class EoWallet:
-    """EOA wallet for signing and submitting CLOB orders (py-clob-client v2)."""
+    """EOA wallet for signing and submitting CLOB orders."""
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -41,12 +41,43 @@ class EoWallet:
         """Derived wallet address from the private key."""
         return self._account_obj().address
 
-    def parse_fills(self, responses) -> list:
-        """Normalize py-clob-client responses into a list of fill dicts.
+    def _build_sdk_client(self):
+        """Build a py-clob-client v2 client with Level-2 credentials."""
+        from py_clob_client.client import ClobClient
+        from py_clob_client.clob_types import ApiCreds
 
-        Handles both the raw POST responses (per-order dicts/arrays) and
-        the ``get_order_amounts`` style completed-order payloads.
-        """
+        kwargs = {}
+        if self.settings.clob_signature_type == 1:
+            if not self.settings.polymarket_proxy_address:
+                raise RuntimeError(
+                    "polymarket_proxy_address required when clob_signature_type=1 (POLY_PROXY)"
+                )
+            kwargs["funder"] = self.settings.polymarket_proxy_address
+        client = ClobClient(
+            self.settings.clob_host,
+            chain_id=self.settings.chain_id,
+            key=self.settings.private_key,
+            signature_type=self.settings.clob_signature_type,
+            **kwargs,
+        )
+        if self.settings.clob_api_secret and self.settings.clob_api_passphrase:
+            client.set_api_creds(
+                ApiCreds(
+                    api_key=self.settings.clob_api_key,
+                    api_secret=self.settings.clob_api_secret,
+                    api_passphrase=self.settings.clob_api_passphrase,
+                )
+            )
+        elif self.settings.clob_api_key:
+            client.set_api_creds(client.create_or_derive_api_creds())
+            logger.info("Derived CLOB API credentials from API key")
+        else:
+            raise RuntimeError("clob_api_key required for live CLOB orders")
+        self._sdk = client
+        return client
+
+    def parse_fills(self, responses) -> list:
+        """Normalize py-clob-client responses into a list of fill dicts."""
         if not responses:
             return []
         if isinstance(responses, str):
@@ -57,37 +88,66 @@ class EoWallet:
         for item in responses:
             if not isinstance(item, dict):
                 continue
-            status = str(item.get("status") or "" ).upper()
+            status = str(item.get("status") or "").upper()
             data = item.get("data") or []
-            if isinstance(data, list) and data:
+            if isinstance(data, list)and data:
                 fills.extend(self.parse_fills(data))
                 continue
-            matched = status == "MATCHED" or status in {"FILLED", "FILL", "SUCCESS"}
-            if matched:
-                fills.append(self._normalize_fill(item, status))
+            size = self._parse_fill_size(item)
+            if size <=  0.0:
+                continue
+            fills.append(self._normalize_fill(item, status, size))
         return fills
 
     @staticmethod
-    def _normalize_fill(item: dict, status: str) -> dict:
+    def _to_float(value) -> float:
+        if value is None:
+            return 0.0
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    @staticmethod
+    def _parse_fill_size(item: dict) -> float:
+        """Extract the filled size from a CLOB order response."""
+        for key in ("size", "sizeMatched", "matchedSize", "originalSize"):
+            val = item.get(key)
+            if val is not None:
+                return EoWallet._to_float(val)
+        making = EoWallet._to_float(item.get("makingAmount"))
+        taking = EoWallet._to_float(item.get("takingAmount"))
+        price = EoWallet._to_float(item.get("price"))
+        if making >  0.0:
+            return making / 1e6
+        if taking > 0.0 and price >  0.0:
+            return taking / price / 1e6
+        return 0.0
+
+    @staticmethod
+    def _normalize_fill(item: dict, status: str, size: float) -> dict:
         """Extract a single completed-fill record from a live CLOB response."""
-        txs = item.get("transactionsHashes") or item.get("transaction_hash") or item.get("transactions") or []
+        txs = item.get("transactionsHashes") or item.get("transaction_hash") or item.get("transactions") or item.get("txHash") or []
         if isinstance(txs, str):
             tx = txs
-        elif isinstance(txs, list) and txs:
+        elif isinstance(txs, list)and txs:
             tx = txs[0] if not isinstance(txs[0], dict) else (txs[0].get("tx_hash") or txs[0].get("transactionHash") or None)
         else:
             tx = None
-        token_id = item.get("token_id") or item.get("asset_id") or item.get("tokenId") or item.get("assetId")
+        token_id = item.get("tokenID") or item.get("token_id") or item.get("assetID") or item.get("asset_id") or item.get("tokenId")
         if token_id is None:
             asset = item.get("asset") or {}
             if isinstance(asset, dict):
                 token_id = asset.get("token_id") or asset.get("tokenId") or asset.get("asset_id")
-        price_raw = item.get("price")
-        price = float(price_raw) if price_raw is not None else 0.0
-        size_raw = item.get("size")
-        size = float(size_raw) if size_raw is not None else 0.0
-        fee_raw = item.get("fee")
-        fee = float(fee_raw) if fee_raw is not None else 0.0
+        price = EoWallet._to_float(item.get("price"))
+        if price ==  0.0:
+            making = EoWallet._to_float(item.get("makingAmount"))
+            taking = EoWallet._to_float(item.get("takingAmount"))
+            if making >  0.0 and taking >  0.0:
+                price = taking / making
+        fee = EoWallet._to_float(
+            item.get("fee") or item.get("taker_fee") or item.get("maker_fee") or item.get("fee_amount")
+        )
         return {
             "token_id": token_id,
             "price": price,
@@ -100,11 +160,7 @@ class EoWallet:
         }
 
     async def place_orders(self, orders: list, order_type: str = "FOK", client=None) -> list:
-        """Place CLOB orders via the py-clob-client v2 SDK.
-
-        Each item in ``orders`` is a dict with token_id/price/size.
-        Returns the raw responses list (feeds into ``parse_fills``).
-        """
+        """Place CLOB orders via the py-clob-client v2 SDK."""
         if not orders:
             return []
         logger.info("Placing %d CLOB orders (type=%s)", len(orders), order_type)
@@ -113,23 +169,7 @@ class EoWallet:
 
         if client is None:
             if self._sdk is None:
-                from py_clob_client.client import ClobClient
-                kwargs = {}
-                if self.settings.clob_signature_type == 1:
-                    # POLY_PROXY signature: funder must be the proxy wallet address
-                    # that holds the funds, not the EOA that signs.
-                    if not self.settings.polymarket_proxy_address:
-                        raise RuntimeError(
-                            "polymarket_proxy_address required when clob_signature_type=1 (POLY_PROXY)"
-                        )
-                    kwargs["funder"] = self.settings.polymarket_proxy_address
-                self._sdk = ClobClient(
-                    self.settings.clob_host,
-                    key=self.settings.private_key,
-                    chain_id=self.settings.chain_id,
-                    signature_type=self.settings.clob_signature_type,
-                    **kwargs,
-                )
+                self._build_sdk_client()
             client = self._sdk
 
         responses = []
@@ -141,7 +181,7 @@ class EoWallet:
                 token_id=str(order["token_id"]),
             )
             signed = client.create_order(args)
-            tif = "FAK" if order_type == "IOC" else "FOK"   # v2 CLOB: "IOC" is no longer a valid time-in-force
+            tif = "FAK" if order_type == "IOC" else "FOK"
             response = await asyncio.to_thread(
                 client.post_order, signed, tif
             )
@@ -149,17 +189,13 @@ class EoWallet:
         return responses
 
     async def sign_order(self, token_id: str, price: float, size: float, side: str = "BUY") -> dict:
-        """Placeholder for manual EIP-712 signing; not used in the live v2 flow."""
         raise NotImplementedError("manual REST signing is not used; use place_orders instead")
 
     async def submit_and_wait(self, order: dict, order_type: str = "FOK") -> dict:
-        """Placeholder for the removed REST fallback; refuse to fabricate fills."""
         raise NotImplementedError("refusing to fabricate an order fill; live orders go via place_orders")
 
     async def wait_for_fills(self, tx_hash: str) -> list:
-        """Placeholder for the removed polling flow."""
         raise NotImplementedError("polling fills is replaced by parsing place_orders responses directly")
 
     async def execute_orders(self, orders: list, order_type: str = "FOK") -> str:
-        """Placeholder retained for compatibility."""
         raise NotImplementedError("use place_orders + parse_fills instead")
