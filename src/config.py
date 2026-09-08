@@ -137,10 +137,11 @@ class Settings(BaseSettings):
 
                     merged = settings.model_dump()
                     dotenv = dotenv_values(".env")
+                    field_names = {name.lower() for name in cls.model_fields}
                     configured_env_keys = {
                         key.lower()
                         for key, value in {**dotenv, **dict(os.environ)}.items()
-                        if value is not None
+                        if value is not None and key.lower() in field_names
                     }
                     merged.update({
                         k: v for k, v in data.items()
