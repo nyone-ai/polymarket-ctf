@@ -149,3 +149,82 @@ async def test_trade_store_record_and_pnl_roundtrip(tmp_path, opportunity):
     assert len(pnl) == 1
     assert pnl[0]["trades_count"] == 1
     assert pnl[0]["pnl_est"] == pytest.approx(0.3)  # size 10*(1-0.95)=0.5 - fees 0.2
+def test_wallet_parse_fills_v2_order_response_shape():
+    wallet = EoWallet(Settings())
+    fills = wallet.parse_fills(
+        [
+            {
+                "orderID": "order-7",
+                "status": "matched",
+                "transactionsHashes": ["0xtxabc"],
+                "tokenID": "tok-v2",
+                "assetID": "tok-v2",
+                "price": "0.5123",
+                "originalSize": "100",
+                "sizeMatched": "50",
+                "makingAmount": "25615000",
+                "takingAmount": "50000000",
+                "fee": "0.123456",
+                "tradeIDs": ["t9"],
+            }
+        ]
+    )
+    assert len(fills) ==  1
+    fill = fills[0]
+    assert fill["token_id"] == "tok-v2"
+    assert fill["size"] == pytest.approx(50.0)
+    assert fill["price"] == pytest.approx(0.5123)
+    assert fill["tx_hash"] == "0xtxabc"
+    assert fill["order_id"] == "order-7"
+    assert fill["trade_ids"] == ["t9"]
+
+
+def test_wallet_parse_fills_buy_uses_taker_amount_as_size_when_no_direct_size():
+    wallet = EoWallet(Settings())
+    fills = wallet.parse_fills(
+        [
+            {
+                "status": "matched",
+                "tokenID": "tok-v2",
+                "price": "0.5",
+                "makingAmount": "5000000",
+                "takingAmount": "10000000",
+                "transactionsHashes": ["0xtx"],
+            }
+        ]
+    )
+    assert len(fills) ==  1
+    assert fills[0]["size"] == pytest.approx(10.0)
+    assert fills[0]["price"] == pytest.approx(0.5)
+
+
+def test_wallet_parse_fills_derives_price_from_amounts():
+    wallet = EoWallet(Settings())
+    fills = wallet.parse_fills(
+        [
+            {
+                "status": "matched",
+                "tokenID": "tok-v2",
+                "makingAmount": "5000000",
+                "takingAmount": "10000000",
+            }
+        ]
+    )
+    assert len(fills) ==  1
+    assert fills[0]["price"] == pytest.approx(0.5)
+
+
+def test_wallet_zero_fill_canceled_response_produces_no_fill():
+    wallet = EoWallet(Settings())
+    fills = wallet.parse_fills(
+        [{"status": "canceled", "tokenID": "tok-v2", "originalSize": "100", "sizeMatched": "0"}]
+    )
+    assert fills == []
+
+
+def test_wallet_canceled_fok_without_size_matched_produces_no_fill():
+    wallet = EoWallet(Settings())
+    fills = wallet.parse_fills(
+        [{"status": "canceled", "tokenID": "tok-v2", "originalSize": "100"}]
+    )
+    assert fills == []
