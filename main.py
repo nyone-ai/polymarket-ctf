@@ -83,3 +83,7 @@ def main():
         asyncio.run(run(settings))
     except KeyboardInterrupt:
         logger.info("Shutting down")
+
+
+if __name__ == "__main__":
+    main()
