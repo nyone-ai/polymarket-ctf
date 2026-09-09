@@ -2,11 +2,25 @@
   "_comment": "Daftar market binary standard (negRisk=false) yang dipantau. Token IDs diisi manual (WATCHLIST_MODE=explicit) atau dikosongkan untuk auto-discover. conditionId dan token ids dari Gamma API >= CLOB price endpoint.",
   "markets": [
     {
-      "condition_id": "0x0000000000000000000000000000000000000000000000000000000000000000",
-      "question": "Replace with a real binary market question",
+      "condition_id": "0xa467b14d51f01b957109d9cbb1d6c124fab2a089d52ed8f471d23c2812e743b7",
+      "question": "Xi Jinping out before 2027?",
       "neg_risk": false,
-      "yes_token_id": "71321045682876283459752040163984812831746950381570885859058867441545989142117",
-      "no_token_id": "71321045682876283459752040163984812831746950381570885859058867441545989142118"
+      "yes_token_id": "32338220190071351435772801779725302244575775216413325951443816017994629993401",
+      "no_token_id": "25659310674993675562345759665114759892400026242514633218387667107987341231962"
+    },
+    {
+      "condition_id": "0x6bd56627aa21311850825edb27e53434a0e17a4f782be0086bc07f71eee00d0d",
+      "question": "Putin out as President of Russia by December 31, 2026?",
+      "neg_risk": false,
+      "yes_token_id": "350977769852917329387037893294763093471844346281449484439085576212613048126",
+      "no_token_id": "87073899845581463485186346288398658568334162612963837182986759797304993556208"
+    },
+    {
+      "condition_id": "0x0dc45815251ab7d5c3cbde5d7eee5bc96eac3d924c0a4c4f10175049e068fe20",
+      "question": "Will Trump pardon Ghislaine Maxwell by end of 2026?",
+      "neg_risk": false,
+      "yes_token_id": "703229116919803457142440034780425874346022451261358752931225117413237404457",
+      "no_token_id": "71144742975537017512904527392353107518472601816123355990566837993879064231255"
     }
   ]
 }
