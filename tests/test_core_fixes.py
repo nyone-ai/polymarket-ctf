@@ -7,7 +7,7 @@ from src.config import Settings
 from src.executor import Executor
 from src.wallet import EoWallet
 from src.notifier import Notifier
-from src.risk import find_opportunity
+from src.risk import ask_depth, find_opportunity
 from src.risk import RiskManager
 from src.scanner.clob import ClobClient
 from src.scanner.watchlist import load_explicit
@@ -130,6 +130,8 @@ def test_ask_depth_used_for_fok_sizing():
     book = Orderbook(market=market)
     book.asks_yes = [Quote("yes", Side.YES, 0.45, 7)]
     book.asks_no = [Quote("no", Side.NO,   0.50,   4)]
+    assert ask_depth(book, Side.YES,   0.45) == 7
+    assert ask_depth(book, Side.NO,   0.50) == 4
 
 
 def test_neg_risk_markets_skipped_in_watchlist(tmp_path):

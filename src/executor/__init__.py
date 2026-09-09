@@ -328,7 +328,12 @@ class Executor:
 
     async def close(self):
         """Close the shared CLOB HTTP client and wallet SDK resources."""
-        if self._clob is not None:
-            await self._clob.close()
-            self._clob = None
+        if self.clob is not None:
+            await self.clob.close()
+            self.clob = None
+        sdk = getattr(self.wallet, "_sdk", None) if self.wallet is not None else None
+        if sdk is not None:
+            close = getattr(sdk, "close", None)
+            if close is not None:
+                close()
 
