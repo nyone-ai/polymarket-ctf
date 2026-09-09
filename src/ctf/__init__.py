@@ -5,7 +5,7 @@ import logging
 from typing import Optional
 
 from src.config import Settings
-from src.utils.constants import CTF_CONDITION_TOKENS
+from src.utils.constants import CTF_CONDITION_TOKENS, PUSD_ADDRESS
 from src.utils.number import to_wei, from_wei
 
 logger = logging.getLogger(__name__)
@@ -100,11 +100,15 @@ class CtfAdapter:
         acct = Account.from_key(self.settings.private_key.strip().removeprefix("0x"))
         adapter = self._get_exchange()
         amount_wei = to_wei(amount, 6)
+        collateral_addr = self.settings.pusd_address or PUSD_ADDRESS
         self._ensure_ctf_approval(w3, acct, adapter.address)
         # Preflight: a revert raises here; a void function returns [] on success.
+
+        # Official Polymarket docs: mergePositions(collateralToken=pUSD,
+        # parentCollectionId=bytes32(0), partition=[1,2] for binary markets.
         try:
             adapter.functions.mergePositions(
-                "0x0000000000000000000000000000000000000000",
+                collateral_addr,
                 "0x" + "0" * 64,
                 condition_id,
                 [1, 2],
@@ -113,8 +117,8 @@ class CtfAdapter:
         except Exception as exc:
             raise RuntimeError(f"CTF adapter mergePositions preflight reverted: {exc}") from exc
         tx = adapter.functions.mergePositions(
-            "0x0000000000000000000000000000000000000000",  # collateralToken (ignored by adapter)
-            "0x" + "0" * 64,  # parentCollectionId (ignored by adapter)
+            collateral_addr,  # collateralToken = pUSD
+            "0x" + "0" * 64,  # parentCollectionId = bytes32(0)
             condition_id,
             [1, 2],  # partition: YES|NO indexes
             amount_wei,

@@ -2,14 +2,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.models import Market, Side
+from src.models import Market, Orderbook, Quote, Side
 from src.config import Settings
 from src.executor import Executor
 from src.wallet import EoWallet
 from src.notifier import Notifier
-from src.risk import find_opportunity
+from src.risk import ask_depth, find_opportunity
 from src.risk import RiskManager
 from src.scanner.clob import ClobClient
+from src.scanner.watchlist import load_explicit
 
 
 def test_clob_client_combines_yes_and_no_books(monkeypatch):
@@ -72,7 +73,7 @@ def test_environment_values_override_yaml(tmp_path, monkeypatch):
     path = tmp_path / "settings.yaml"
     path.write_text("mode: paper\norder_type: FOK\n", encoding="utf-8")
     monkeypatch.setenv("MODE", "live")
-    monkeypatch.setenv("ORDER_TYPE", "ioc")
+    monkeypatch.setenv("ORDER_TYPE", "fak")
     monkeypatch.setenv("PRIVATE_KEY", "5b3c49b8fd3b9bf1d771ae61f6b14cfc1adcf309c01cba03488abf1ae89f1591")
     monkeypatch.setenv("WALLET_ADDRESS", "0x4113a96bca721d9FEd8448360D72878A9cCcd5bC")
     monkeypatch.setenv("RPC_URL", "https://rpc.example")
@@ -81,7 +82,7 @@ def test_environment_values_override_yaml(tmp_path, monkeypatch):
     settings = Settings.from_yaml(path)
 
     assert settings.mode == "live"
-    assert settings.order_type == "IOC"
+    assert settings.order_type == "FAK"
 
 
 @pytest.mark.asyncio
@@ -124,3 +125,22 @@ def test_daily_loss_limit_halts_subsequent_trades():
 
     assert risk.check_daily_loss(-10) is False
     assert risk.can_trade() is False
+def test_ask_depth_used_for_fok_sizing():
+    market = Market("condition", "q", yes_token_id="yes", no_token_id="no")
+    book = Orderbook(market=market)
+    book.asks_yes = [Quote("yes", Side.YES, 0.45, 7)]
+    book.asks_no = [Quote("no", Side.NO,   0.50,   4)]
+    assert ask_depth(book, Side.YES,   0.45) == 7
+    assert ask_depth(book, Side.NO,   0.50) == 4
+
+
+def test_neg_risk_markets_skipped_in_watchlist(tmp_path):
+    path = tmp_path / "watchlist.json"
+    path.write_text("""{"markets": [{"condition_id": "0xbad", "question": "hello", "neg_risk": true}]}""", encoding="utf-8")
+    assert load_explicit(path=path) == []
+
+def test_daily_loss_credits_profit():
+    risk = RiskManager(Settings(max_daily_loss=100.0))
+    assert risk.check_daily_loss(-60.0)is True
+    assert risk.check_daily_loss(25.0)is True
+    assert risk.can_trade()is True

@@ -1,6 +1,7 @@
 """Market discovery + watchlist resolution."""
 from __future__ import annotations
 
+import json
 import logging
 
 from src.config import Settings
@@ -17,10 +18,19 @@ async def discover_markets(client, settings):
     for item in raw:
         if not item.get("active"):
             continue
+        if item.get("closed") or item.get("archived"):
+            continue
+        if item.get("accepting_orders") is False or item.get("enable_order_book") is False:
+            continue
         if item.get("neg_risk"):
             continue
         cond = item.get("condition_id") or item.get("id")
         tokens = item.get("clobTokenIds") or item.get("tokens") or []
+        if isinstance(tokens, str):
+            try:
+                tokens = json.loads(tokens)
+            except Exception:
+                tokens = []
         if not cond or not tokens:
             continue
         if isinstance(tokens, list) and tokens and isinstance(tokens[0], dict):

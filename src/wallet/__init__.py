@@ -178,33 +178,44 @@ class EoWallet:
         }
 
     async def place_orders(self, orders: list, order_type: str = "FOK", client=None) -> list:
-        """Place CLOB orders via the py-clob-client v2 SDK."""
+        """Place CLOB orders via the py-clob-client SDK, concurrently."""
         if not orders:
             return []
         logger.info("Placing %d CLOB orders (type=%s)", len(orders), order_type)
-        from py_clob_client.clob_types import OrderArgs
-        from py_clob_client.order_builder.constants import BUY
-
         if client is None:
             if self._sdk is None:
                 self._build_sdk_client()
             client = self._sdk
 
-        responses = []
-        for order in orders:
-            args = OrderArgs(
-                price=float(order["price"]),
-                size=float(order["size"]),
-                side=BUY,
-                token_id=str(order["token_id"]),
-            )
-            signed = client.create_order(args)
-            tif = "FAK" if order_type == "IOC" else "FOK"
-            response = await asyncio.to_thread(
-                client.post_order, signed, tif
-            )
-            responses.append(response)
-        return responses
+        order_type_enum = self._order_type_enum(order_type)
+        coros = [
+            asyncio.to_thread(self._create_and_post, client, order, order_type_enum)
+            for order in orders
+        ]
+        return await asyncio.gather(*coros)
+
+    @staticmethod
+    def _order_type_enum(order_type: str):
+        from py_clob_client.clob_types import OrderType
+        return OrderType.FOK if order_type.upper() == "FOK" else OrderType.FAK
+
+    @staticmethod
+    def _create_and_post(client, order: dict, order_type):
+        """Synchronous create+post for one order (runs in a worker thread)."""
+        from py_clob_client.clob_types import OrderArgs
+        from py_clob_client.order_builder.constants import BUY
+
+        args = OrderArgs(
+            price=float(order["price"]),
+            size=float(order["size"]),
+            side=BUY,
+            token_id=str(order["token_id"]),
+        )
+        signed = client.create_order(args)
+        response = client.post_order(signed, order_type)
+        if isinstance(response, dict):
+            return response
+        return {"status": str(response)}
 
     async def sign_order(self, token_id: str, price: float, size: float, side: str = "BUY") -> dict:
         raise NotImplementedError("manual REST signing is not used; use place_orders instead")

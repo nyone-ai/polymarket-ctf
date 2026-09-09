@@ -47,7 +47,6 @@ src/executor/            eksekusi paper/live: preflight, CLOB order, CTF merge
 src/collateral/          wrap/unwrap USDC.e <-> pUSD via CollateralOnramp/Offramp
 src/ctf/                 adaptor CTF merge (mergePositions)
 src/wallet/              EOA wallet with EIP-712 signing for CLOB orders
-src/flashloan/           interface Morpho flashloan, opsional
 src/notifier.py          pengirim Telegram
 src/utils/               constants, number, retry
 ```
@@ -103,7 +102,7 @@ sebelum live trading.
 | `max_daily_loss` | `100` | batas rugi harian, USD |
 | `cooldown_seconds` | `5` | jeda antar trade |
 | `max_trades_per_minute` | `10` | rate limit |
-| `order_type` | `FOK` | FOK atau IOC |
+| `order_type` | `FOK` | FOK atau FAK |
 | `watchlist_mode` | `explicit` | explicit, auto, hybrid |
 
 Field lain yang bisa di-set: `min_profit_margin_bps`, `reserve_gas_usd`,
@@ -211,7 +210,7 @@ Semua keputusan, sizing, dan PnL tercatat di state SQLite.
 > end-to-end, sehingga bot menolak mengirim order atau transaksi nyata daripada
 > membuat fill atau signature palsu.
 
-1. Place YES and NO orders via CLOB (FOK or IOC).
+1. Place YES and NO orders via CLOB (FOK or FAK).
 2. Wait for both orders to fill.
 3. Execute CTF `mergePositions` to convert YES+NO -> pUSD.
 4. Handle partial fills and excess tokens based on `excess_mode`.
@@ -244,7 +243,6 @@ Bisa juga lewat env: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
 - Test offline notifier dengan mock HTTP.
 - Live dry-run terbatas: satu trade, FOK kecil.
 - Wrap/unwrap otomatis via Collateral, opsional.
-- Flashloan Morpho sebagai opsi scaling modal, opsional.
 
 ## Disclaimer
 

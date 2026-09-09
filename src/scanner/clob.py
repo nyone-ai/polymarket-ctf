@@ -1,6 +1,7 @@
 """Thin async client for Polymarket CLOB public endpoints."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from datetime import datetime, timezone
@@ -49,8 +50,10 @@ class ClobClient:
         Fetch and combine YES and NO orderbooks for a market into one Orderbook.
         This is the primary method used by the arbitrage engine.
         """
-        yes_book = await self.get_orderbook(market.yes_token_id, depth)
-        no_book = await self.get_orderbook(market.no_token_id, depth)
+        yes_book, no_book = await asyncio.gather(
+            self.get_orderbook(market.yes_token_id, depth),
+            self.get_orderbook(market.no_token_id, depth),
+        )
 
         combined = Orderbook(market=market)
         combined.asks_yes = yes_book.asks_yes

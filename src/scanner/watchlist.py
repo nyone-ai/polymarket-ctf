@@ -32,6 +32,9 @@ def load_explicit(path=None, condition_ids=None):
         cid = entry.get("condition_id", "")
         if not cid or _is_zero_id(str(cid)) or "Replace" in str(entry.get("question", "")):
             continue
+        if entry.get("neg_risk"):
+            logger.info("Skipping neg-risk market %s (not supported by merge strategy)", cid)
+            continue
         if "condition_id" not in entry:
             logger.warning("Watchlist entry missing condition_id: %s", entry)
             continue
